@@ -1,0 +1,7 @@
+%% Track2 demo: segments
+%% Demonstrates named segments on a paired track group
+
+trackgroup Line1
+  west: ---alpha--- ---beta--- ---gamma---
+  east: ---delta--- ---epsilon--- ---zeta---
+end
