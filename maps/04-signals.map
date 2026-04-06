@@ -1,0 +1,7 @@
+%% Track2 demo: signals
+%% Same Seattle 1 Line layout, now with auto-generated signals
+
+trackgroup Line1
+  north: [CAP-N] ---s1--- [WES-N] ---s2--- [SYM-N] ---s3--- [PIO-N] ---s4--- [IDC-N]
+  south: [CAP-S] ---s5--- [WES-S] ---s6--- [SYM-S] ---s7--- [PIO-S] ---s8--- [IDC-S]
+end

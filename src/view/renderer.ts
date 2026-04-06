@@ -3,16 +3,20 @@
  */
 
 import { type ScreenBuffer, type CellStyle } from './terminal.js';
-import type { LayoutResult, SegmentLayout } from './layout.js';
+import type { LayoutResult } from './layout.js';
 import type { TrackGraph } from '../model/graph.js';
 import type { Platform } from '../model/types.js';
 
 const TRACK_CHAR = '━';
 const BOUNDARY_CHAR = '┿';
 const BOUNDARY_LABEL_CHAR = '┃';
+const SIGNAL_CHAR = '●';
 const TRACK_STYLE: CellStyle = { fg: 37, bg: 40, bold: true, inverse: false };
 const LABEL_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
 const PLATFORM_LABEL_STYLE: CellStyle = { fg: 30, bg: 47, bold: true, inverse: false };
+const SIGNAL_RED: CellStyle = { fg: 31, bg: 40, bold: true, inverse: false };
+const SIGNAL_GREEN: CellStyle = { fg: 32, bg: 40, bold: true, inverse: false };
+const SIGNAL_LABEL_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
 const STATUS_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
 
 export class Renderer {
@@ -33,6 +37,7 @@ export class Renderer {
     this.screen.clear();
     if (this.layout && this.graph) {
       this.drawSegments();
+      this.drawSignals();
     }
     this.drawStatusBar();
   }
@@ -66,6 +71,23 @@ export class Renderer {
         this.screen.put(boundaryX, sl.y, BOUNDARY_CHAR, TRACK_STYLE);
         this.screen.put(boundaryX, sl.labelY, BOUNDARY_LABEL_CHAR, LABEL_STYLE);
       }
+    }
+  }
+
+  private drawSignals(): void {
+    if (!this.layout) return;
+
+    for (const sl of this.layout.signals) {
+      const style = sl.signal.state === 'green' ? SIGNAL_GREEN : SIGNAL_RED;
+      this.screen.put(sl.x, sl.symbolY, SIGNAL_CHAR, style);
+
+      // Position labels to avoid overlap:
+      // East-facing label ends at signal x, west-facing label starts at signal x
+      const label = sl.signal.id;
+      const labelX = sl.signal.facingDirection === 'east'
+        ? sl.x - label.length + 1
+        : sl.x;
+      this.screen.putString(labelX, sl.labelY, label, SIGNAL_LABEL_STYLE);
     }
   }
 

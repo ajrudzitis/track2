@@ -7,30 +7,32 @@
 - [x] Create README.md, AGENT.md, TODO.md
 
 ## Phase 1: Terminal Control + Basic Track Rendering
-- [ ] Implement terminal.ts (raw mode, alternate screen, ANSI helpers, screen buffer)
-- [ ] Implement input.ts (keyboard handling, q to quit)
-- [ ] Implement renderer.ts (draw horizontal tracks with ━)
-- [ ] Demo: TUI shows two parallel tracks, q exits cleanly
+- [x] Implement terminal.ts (raw mode, alternate screen, ANSI helpers, screen buffer)
+- [x] Implement input.ts (keyboard handling, q to quit)
+- [x] Implement renderer.ts (draw horizontal tracks with ━)
+- [x] Demo: TUI shows two parallel tracks, q exits cleanly
 
 ## Phase 2: .map Parser + Segments
-- [ ] Implement tokenizer and parser for trackgroup blocks
-- [ ] Implement segment model and track graph
-- [ ] Implement layout algorithm (linear horizontal)
-- [ ] Render segment labels in muted gray
-- [ ] Create maps/02-segments.map
+- [x] Implement tokenizer and parser for trackgroup blocks
+- [x] Implement segment model and track graph
+- [x] Implement layout algorithm (linear horizontal)
+- [x] Render segment labels in muted gray
+- [x] Render tick marks at segment boundaries
+- [x] Create maps/02-segments.map
 
 ## Phase 3: Platforms + Stations
-- [ ] Platform model (3-char abbreviation, colored background)
-- [ ] Parser support for [XXX] platform syntax
-- [ ] Station grouping
-- [ ] Create maps/03-platforms.map
+- [x] Platform model (3-char abbreviation, colored background)
+- [x] Parser support for [XXX] platform syntax
+- [x] Parser support for north:/south: direction aliases
+- [x] Create maps/03-platforms.map (Seattle 1 Line stations)
 
 ## Phase 4: Signals
-- [ ] Signal model (red/green, direction-facing)
-- [ ] Auto-generate signals at segment boundaries
-- [ ] Render signals as colored ● with labels
-- [ ] Basic interlocking logic
-- [ ] Create maps/04-signals.map
+- [x] Signal model (red/green, direction-facing)
+- [x] Auto-generate signals at segment boundaries
+- [x] Render signals as colored ● below track with labels
+- [x] Signal pairs straddle boundary tick marks
+- [x] Create maps/04-signals.map
+- [ ] Basic interlocking logic (deferred to Phase 5 when trains exist)
 
 ## Phase 5: Trains (Movement)
 - [ ] Train model (ID, position, direction, speed, state)

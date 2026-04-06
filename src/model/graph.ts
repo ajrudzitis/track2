@@ -4,11 +4,13 @@
 
 import type { MapFile } from '../parser/types.js';
 import type { Segment, Platform, TrackGroup } from './types.js';
+import { type Signal, generateSignals } from './signal.js';
 
 const DEFAULT_SEGMENT_WIDTH = 16;
 
 export class TrackGraph {
   segments: Map<string, Segment> = new Map();
+  signals: Signal[] = [];
   trackGroups: TrackGroup[] = [];
 
   static fromMapFile(mapFile: MapFile): TrackGraph {
@@ -40,6 +42,10 @@ export class TrackGraph {
       // Link segments in sequence
       graph.linkSequence(tg.westSegments);
       graph.linkSequence(tg.eastSegments);
+
+      // Auto-generate signals at segment boundaries
+      graph.signals.push(...generateSignals(tg.westSegments, groupDef.name, 'west'));
+      graph.signals.push(...generateSignals(tg.eastSegments, groupDef.name, 'east'));
 
       graph.trackGroups.push(tg);
     }

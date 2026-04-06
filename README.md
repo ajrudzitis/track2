@@ -33,4 +33,4 @@ maps/                  # Example .map files
 
 ## Status
 
-Phase 0 — Project setup complete. No functionality yet.
+Phase 4 complete — TUI renders tracks with segments, platforms, and signals from `.map` files. No trains yet.
