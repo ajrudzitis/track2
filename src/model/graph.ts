@@ -3,7 +3,7 @@
  */
 
 import type { MapFile } from '../parser/types.js';
-import type { Segment, TrackGroup } from './types.js';
+import type { Segment, Platform, TrackGroup } from './types.js';
 
 const DEFAULT_SEGMENT_WIDTH = 16;
 
@@ -23,13 +23,17 @@ export class TrackGraph {
 
       // Build west track segments
       for (const elem of groupDef.westTrack) {
-        const seg = graph.createSegment(elem.id, elem.type === 'platform' ? 'platform' : 'plain', groupDef.name, 'west');
+        const seg = elem.type === 'platform'
+          ? graph.createPlatform(elem.id, groupDef.name, 'west', mapFile.config.dwell)
+          : graph.createSegment(elem.id, 'plain', groupDef.name, 'west');
         tg.westSegments.push(seg.id);
       }
 
       // Build east track segments
       for (const elem of groupDef.eastTrack) {
-        const seg = graph.createSegment(elem.id, elem.type === 'platform' ? 'platform' : 'plain', groupDef.name, 'east');
+        const seg = elem.type === 'platform'
+          ? graph.createPlatform(elem.id, groupDef.name, 'east', mapFile.config.dwell)
+          : graph.createSegment(elem.id, 'plain', groupDef.name, 'east');
         tg.eastSegments.push(seg.id);
       }
 
@@ -55,6 +59,23 @@ export class TrackGraph {
     };
     this.segments.set(id, seg);
     return seg;
+  }
+
+  private createPlatform(id: string, trackGroupName: string, direction: 'west' | 'east', dwellTime: number): Platform {
+    const plat: Platform = {
+      id,
+      type: 'platform',
+      displayWidth: DEFAULT_SEGMENT_WIDTH,
+      trackGroupName,
+      trackDirection: direction,
+      next: null,
+      prev: null,
+      stationAbbr: id.slice(0, 3).toUpperCase(),
+      stationName: id,
+      dwellTime,
+    };
+    this.segments.set(id, plat);
+    return plat;
   }
 
   private linkSequence(segmentIds: string[]): void {

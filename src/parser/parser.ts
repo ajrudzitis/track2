@@ -73,10 +73,12 @@ function parseTrackGroupBlock(name: string, lines: string[], start: number): [Tr
     const line = lines[i].trim();
     if (line === 'end') return [group, i + 1];
 
-    if (line.startsWith('west:')) {
-      group.westTrack = parseTrackLine(line.slice('west:'.length).trim());
-    } else if (line.startsWith('east:')) {
-      group.eastTrack = parseTrackLine(line.slice('east:'.length).trim());
+    if (line.startsWith('west:') || line.startsWith('north:')) {
+      const prefix = line.startsWith('west:') ? 'west:' : 'north:';
+      group.westTrack = parseTrackLine(line.slice(prefix.length).trim());
+    } else if (line.startsWith('east:') || line.startsWith('south:')) {
+      const prefix = line.startsWith('east:') ? 'east:' : 'south:';
+      group.eastTrack = parseTrackLine(line.slice(prefix.length).trim());
     }
 
     i++;

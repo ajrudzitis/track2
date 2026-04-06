@@ -5,12 +5,14 @@
 import { type ScreenBuffer, type CellStyle } from './terminal.js';
 import type { LayoutResult, SegmentLayout } from './layout.js';
 import type { TrackGraph } from '../model/graph.js';
+import type { Platform } from '../model/types.js';
 
 const TRACK_CHAR = '━';
 const BOUNDARY_CHAR = '┿';
 const BOUNDARY_LABEL_CHAR = '┃';
 const TRACK_STYLE: CellStyle = { fg: 37, bg: 40, bold: true, inverse: false };
 const LABEL_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
+const PLATFORM_LABEL_STYLE: CellStyle = { fg: 30, bg: 47, bold: true, inverse: false };
 const STATUS_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
 
 export class Renderer {
@@ -46,10 +48,17 @@ export class Renderer {
         this.screen.put(sl.x + i, sl.y, TRACK_CHAR, TRACK_STYLE);
       }
 
-      // Draw segment label centered above
-      const label = seg.id;
-      const labelX = sl.x + Math.floor((sl.width - label.length) / 2);
-      this.screen.putString(labelX, sl.labelY, label, LABEL_STYLE);
+      // Draw label centered above
+      if (seg.type === 'platform') {
+        const plat = seg as Platform;
+        const label = ` ${plat.id} `;
+        const labelX = sl.x + Math.floor((sl.width - label.length) / 2);
+        this.screen.putString(labelX, sl.labelY, label, PLATFORM_LABEL_STYLE);
+      } else {
+        const label = seg.id;
+        const labelX = sl.x + Math.floor((sl.width - label.length) / 2);
+        this.screen.putString(labelX, sl.labelY, label, LABEL_STYLE);
+      }
 
       // Draw boundary tick mark at the end of segment (if there's a next segment)
       if (seg.next) {
