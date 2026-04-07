@@ -47,11 +47,11 @@
 - [x] Create maps/05-trains.map
 
 ## Phase 6: Routes + Multi-Train Operation
-- [ ] Route model (ordered platform list, cyclic)
-- [ ] Multiple trains per route
-- [ ] Direction reversal at endpoints
-- [ ] Speed control (keyboard)
-- [ ] Create maps/06-routes.map
+- [x] Route model (ordered platform list, cyclic)
+- [x] Multiple trains per route
+- [x] Direction reversal at endpoints
+- [x] Speed control (keyboard)
+- [x] Create maps/06-routes.map
 
 ## Phase 7: Switches (Branch + Crossover)
 - [ ] Switch segment type

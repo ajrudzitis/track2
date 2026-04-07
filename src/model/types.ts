@@ -37,4 +37,19 @@ export interface Train {
   color: number;             // ANSI color code for background
   trackGroupName: string;
   trackDirection: 'west' | 'east'; // which track the train is on
+  routeId?: string;          // name of the route this train belongs to
 }
+
+export interface Route {
+  name: string;
+  color: number;             // resolved ANSI background color code
+  platformAbbrs: string[];   // station abbreviations from the route def
+  trackGroupName: string;    // which trackgroup this route operates on
+  trainIds: string[];        // custom train IDs (may be empty)
+  trainCount: number;        // total number of trains to spawn
+}
+
+export const ANSI_COLORS: Record<string, number> = {
+  red: 41, green: 42, yellow: 43, blue: 44,
+  magenta: 45, cyan: 46, white: 47,
+};

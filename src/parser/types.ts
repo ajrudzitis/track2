@@ -30,4 +30,5 @@ export interface RouteDef {
   platforms: string[];
   trainCount: number;
   trainIds: string[];
+  trackGroupName?: string;
 }

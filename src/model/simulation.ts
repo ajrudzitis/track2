@@ -2,14 +2,10 @@
  * Simulation engine: game loop, train movement, signal interlocking, platform dwell.
  */
 
-import type { Train, Segment, Platform } from './types.js';
+import type { Train, Segment, Platform, Route } from './types.js';
+import { ANSI_COLORS } from './types.js';
 import type { Signal } from './signal.js';
 import type { TrackGraph } from './graph.js';
-
-const ANSI_COLORS: Record<string, number> = {
-  red: 41, green: 42, yellow: 43, blue: 44,
-  magenta: 45, cyan: 46, white: 47,
-};
 
 /**
  * Average seconds for a train to traverse one segment.
@@ -82,6 +78,69 @@ export class Simulation {
           trackDirection: 'east',
         });
       }
+    }
+  }
+
+  /**
+   * Spawn trains based on route definitions.
+   */
+  spawnRouteTrains(): void {
+    for (const route of this.graph.routes) {
+      const westCount = Math.ceil(route.trainCount / 2);
+      const eastCount = Math.floor(route.trainCount / 2);
+      let idIndex = 0;
+
+      this.spawnTrainsOnTrack(route, 'west', westCount, idIndex);
+      idIndex += westCount;
+      this.spawnTrainsOnTrack(route, 'east', eastCount, idIndex);
+    }
+  }
+
+  private spawnTrainsOnTrack(route: Route, trackDirection: 'west' | 'east', count: number, idOffset: number): void {
+    if (count === 0) return;
+
+    const extent = this.graph.getRouteExtent(route, trackDirection);
+    if (extent.length === 0) return;
+
+    const occupiedSegments = new Set(this.trains.map(t => t.segmentId));
+
+    for (let i = 0; i < count; i++) {
+      // Distribute trains evenly across ALL segments in the route extent, avoiding occupied ones
+      let segIdx = Math.floor(i * extent.length / count);
+      let segmentId = extent[segIdx];
+
+      // If occupied, find nearest unoccupied segment
+      if (occupiedSegments.has(segmentId)) {
+        for (let offset = 1; offset < extent.length; offset++) {
+          const fwd = segIdx + offset;
+          const bwd = segIdx - offset;
+          if (fwd < extent.length && !occupiedSegments.has(extent[fwd])) { segmentId = extent[fwd]; break; }
+          if (bwd >= 0 && !occupiedSegments.has(extent[bwd])) { segmentId = extent[bwd]; break; }
+        }
+      }
+      occupiedSegments.add(segmentId);
+
+      // Alternate initial direction for natural spacing
+      const direction = (i % 2 === 0)
+        ? (trackDirection === 'west' ? 'west' : 'east')
+        : (trackDirection === 'west' ? 'east' : 'west');
+
+      const id = (idOffset + i < route.trainIds.length)
+        ? route.trainIds[idOffset + i]
+        : this.generateId();
+
+      this.trains.push({
+        id,
+        segmentId,
+        position: 0.5,
+        direction,
+        state: 'running',
+        dwellRemaining: 0,
+        color: route.color,
+        trackGroupName: route.trackGroupName,
+        trackDirection,
+        routeId: route.name,
+      });
     }
   }
 
@@ -246,10 +305,15 @@ export class Simulation {
   }
 
   /**
-   * Check if this platform is a terminus (first or last platform on the track).
+   * Check if this platform is a terminus (first or last platform on the track/route).
    * If so, reverse the train's direction.
    */
   private checkTerminusReversal(train: Train): void {
+    if (train.routeId) {
+      this.checkRouteTerminusReversal(train);
+      return;
+    }
+
     const tg = this.graph.trackGroups.find(t => t.name === train.trackGroupName);
     if (!tg) return;
 
@@ -260,6 +324,22 @@ export class Simulation {
     if (train.direction === 'east' && train.segmentId === lastPlat) {
       train.direction = 'west';
     } else if (train.direction === 'west' && train.segmentId === firstPlat) {
+      train.direction = 'east';
+    }
+  }
+
+  private checkRouteTerminusReversal(train: Train): void {
+    const route = this.graph.routes.find(r => r.name === train.routeId);
+    if (!route) return;
+
+    const firstAbbr = route.platformAbbrs[0];
+    const lastAbbr = route.platformAbbrs[route.platformAbbrs.length - 1];
+    const firstPlatId = this.graph.findPlatformOnTrack(firstAbbr, route.trackGroupName, train.trackDirection);
+    const lastPlatId = this.graph.findPlatformOnTrack(lastAbbr, route.trackGroupName, train.trackDirection);
+
+    if (train.direction === 'east' && train.segmentId === lastPlatId) {
+      train.direction = 'west';
+    } else if (train.direction === 'west' && train.segmentId === firstPlatId) {
       train.direction = 'east';
     }
   }

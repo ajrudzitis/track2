@@ -8,7 +8,7 @@ Track2 lets you define subway networks in `.map` files and watch trains run in a
 
 ```bash
 npm install
-npm run dev -- maps/05-trains.map
+npm run dev -- maps/06-routes.map
 ```
 
 ## Development
@@ -33,4 +33,4 @@ maps/                  # Example .map files
 
 ## Status
 
-Phase 5 complete — trains move along tracks, stop at red signals, dwell at platforms, and reverse at track ends. Speed adjustable with `+`/`-` keys.
+Phase 6 complete — named routes with configurable colors and train counts. Multiple trains per route distributed across both tracks with signal-based queueing. Partial-line routes reverse at route-defined terminus platforms. Backward compatible with older maps.

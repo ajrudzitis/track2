@@ -112,6 +112,7 @@ function parseRouteBlock(name: string, lines: string[], start: number): [RouteDe
     else if (key === 'platforms') route.platforms = value.split(',').map(s => s.trim());
     else if (key === 'trains') route.trainCount = parseInt(value, 10);
     else if (key === 'ids') route.trainIds = value.split(',').map(s => s.trim());
+    else if (key === 'trackgroup') route.trackGroupName = value;
 
     i++;
   }

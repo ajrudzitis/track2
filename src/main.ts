@@ -31,7 +31,11 @@ renderer.setData(graph, layout);
 
 // Set up simulation
 const sim = new Simulation(graph);
-sim.spawnDefaultTrains('cyan');
+if (graph.routes.length > 0) {
+  sim.spawnRouteTrains();
+} else {
+  sim.spawnDefaultTrains('cyan');
+}
 
 function draw(): void {
   renderer.setTrains(sim.trains);
