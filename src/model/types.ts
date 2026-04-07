@@ -24,3 +24,17 @@ export interface TrackGroup {
   westSegments: string[];   // segment ids in order
   eastSegments: string[];   // segment ids in order
 }
+
+export type TrainState = 'running' | 'stopped' | 'dwelling';
+
+export interface Train {
+  id: string;                // 4-char display ID
+  segmentId: string;         // current segment
+  position: number;          // 0.0–1.0 progress through segment
+  direction: 'west' | 'east'; // current direction of travel
+  state: TrainState;
+  dwellRemaining: number;    // seconds remaining at platform (0 if not dwelling)
+  color: number;             // ANSI color code for background
+  trackGroupName: string;
+  trackDirection: 'west' | 'east'; // which track the train is on
+}

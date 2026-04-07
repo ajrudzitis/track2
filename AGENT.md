@@ -13,7 +13,7 @@ Four layers, cleanly separated:
 
 - **Parser** (`src/parser/`): Reads `.map` files into model objects
 - **Model** (`src/model/`): Track topology graph, trains, signals, segments
-- **Controller** (`src/controller/`): Simulation loop, train movement, signal automation
+- **Simulation** (`src/model/simulation.ts`): Game loop, train movement, signal interlocking
 - **View** (`src/view/`): TUI rendering with ANSI escape codes, keyboard input
 
 ## Tech Stack

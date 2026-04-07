@@ -3,9 +3,9 @@
  */
 
 import { type ScreenBuffer, type CellStyle } from './terminal.js';
-import type { LayoutResult } from './layout.js';
+import type { LayoutResult, SegmentLayout } from './layout.js';
 import type { TrackGraph } from '../model/graph.js';
-import type { Platform } from '../model/types.js';
+import type { Platform, Train } from '../model/types.js';
 
 const TRACK_CHAR = '━';
 const BOUNDARY_CHAR = '┿';
@@ -19,10 +19,15 @@ const SIGNAL_GREEN: CellStyle = { fg: 32, bg: 40, bold: true, inverse: false };
 const SIGNAL_LABEL_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
 const STATUS_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
 
+const WEST_ARROW = '◂';
+const EAST_ARROW = '▸';
+
 export class Renderer {
   private screen: ScreenBuffer;
   private layout: LayoutResult | null = null;
   private graph: TrackGraph | null = null;
+  private trains: Train[] = [];
+  private speedDisplay: string = '1.0x';
 
   constructor(screen: ScreenBuffer) {
     this.screen = screen;
@@ -33,11 +38,20 @@ export class Renderer {
     this.layout = layout;
   }
 
+  setTrains(trains: Train[]): void {
+    this.trains = trains;
+  }
+
+  setSpeedDisplay(s: string): void {
+    this.speedDisplay = s;
+  }
+
   render(): void {
     this.screen.clear();
     if (this.layout && this.graph) {
       this.drawSegments();
       this.drawSignals();
+      this.drawTrains();
     }
     this.drawStatusBar();
   }
@@ -91,9 +105,34 @@ export class Renderer {
     }
   }
 
+  private drawTrains(): void {
+    if (!this.layout) return;
+
+    for (const train of this.trains) {
+      const sl = this.layout.segments.get(train.segmentId);
+      if (!sl) continue;
+
+      const trainStyle: CellStyle = { fg: 30, bg: train.color, bold: true, inverse: false };
+
+      // Build train text: ◂1001 (westbound) or 1001▸ (eastbound)
+      const trainText = train.direction === 'west'
+        ? WEST_ARROW + train.id
+        : train.id + EAST_ARROW;
+
+      // Position train within the segment based on position (0.0–1.0)
+      const trainWidth = trainText.length;
+      const usableWidth = sl.width - trainWidth;
+      const trainX = sl.x + Math.round(train.position * usableWidth);
+
+      for (let i = 0; i < trainText.length; i++) {
+        this.screen.put(trainX + i, sl.y, trainText[i], trainStyle);
+      }
+    }
+  }
+
   private drawStatusBar(): void {
     const y = this.screen.height - 1;
-    const status = '  Track2 v0.1  │  q: quit';
+    const status = `  Track2 v0.1  │  +/-: speed  │  q: quit  │  ${this.speedDisplay}`;
     this.screen.putString(0, y, status, STATUS_STYLE);
   }
 }

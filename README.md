@@ -8,7 +8,7 @@ Track2 lets you define subway networks in `.map` files and watch trains run in a
 
 ```bash
 npm install
-npm run dev -- maps/demo.map
+npm run dev -- maps/05-trains.map
 ```
 
 ## Development
@@ -33,4 +33,4 @@ maps/                  # Example .map files
 
 ## Status
 
-Phase 4 complete — TUI renders tracks with segments, platforms, and signals from `.map` files. No trains yet.
+Phase 5 complete — trains move along tracks, stop at red signals, dwell at platforms, and reverse at track ends. Speed adjustable with `+`/`-` keys.

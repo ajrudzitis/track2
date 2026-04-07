@@ -35,13 +35,16 @@
 - [ ] Basic interlocking logic (deferred to Phase 5 when trains exist)
 
 ## Phase 5: Trains (Movement)
-- [ ] Train model (ID, position, direction, speed, state)
-- [ ] Simulation game loop (~16ms ticks)
-- [ ] Train movement along segments
-- [ ] Signal respect (stop at red)
-- [ ] Platform dwell (15s default)
-- [ ] Render trains as inverted text on track
-- [ ] Create maps/05-trains.map
+- [x] Train model (ID, position, direction, speed, state)
+- [x] Simulation game loop (~60ms ticks)
+- [x] Train movement along segments
+- [x] Signal respect (stop at red)
+- [x] Platform dwell (configurable, default 15s)
+- [x] Render trains as inverted text on track
+- [x] Direction reversal at track ends (no switches yet)
+- [x] Speed control (+/- keys, 0.25x–4.0x)
+- [x] Signal interlocking (red when segment occupied)
+- [x] Create maps/05-trains.map
 
 ## Phase 6: Routes + Multi-Train Operation
 - [ ] Route model (ordered platform list, cyclic)

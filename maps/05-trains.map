@@ -1,0 +1,11 @@
+%% Track2 demo: trains
+%% Seattle 1 Line with trains running back and forth
+
+config
+  dwell: 5s
+end
+
+trackgroup Line1
+  north: [CAP-N] ---s1--- [WES-N] ---s2--- [SYM-N] ---s3--- [PIO-N] ---s4--- [IDC-N]
+  south: [CAP-S] ---s5--- [WES-S] ---s6--- [SYM-S] ---s7--- [PIO-S] ---s8--- [IDC-S]
+end

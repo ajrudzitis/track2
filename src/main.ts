@@ -7,6 +7,7 @@ import { Renderer } from './view/renderer.js';
 import { parseMapFile } from './parser/parser.js';
 import { TrackGraph } from './model/graph.js';
 import { computeLayout } from './view/layout.js';
+import { Simulation } from './model/simulation.js';
 
 const args = process.argv.slice(2);
 
@@ -28,12 +29,19 @@ const terminal = new Terminal();
 const renderer = new Renderer(terminal.screen);
 renderer.setData(graph, layout);
 
+// Set up simulation
+const sim = new Simulation(graph);
+sim.spawnDefaultTrains('cyan');
+
 function draw(): void {
+  renderer.setTrains(sim.trains);
+  renderer.setSpeedDisplay(`${sim.currentSpeed.toFixed(2)}x`);
   renderer.render();
   terminal.flush();
 }
 
 function shutdown(): void {
+  sim.stop();
   input.stop();
   terminal.exit();
   process.exit(0);
@@ -42,6 +50,10 @@ function shutdown(): void {
 const input = new InputHandler((key: string) => {
   if (key === 'q' || key === '\x03') {
     shutdown();
+  } else if (key === '+' || key === '=') {
+    sim.increaseSpeed();
+  } else if (key === '-' || key === '_') {
+    sim.decreaseSpeed();
   }
 });
 
@@ -49,6 +61,9 @@ const input = new InputHandler((key: string) => {
 terminal.enter();
 input.start();
 draw();
+
+// Start simulation loop — redraws on each tick
+sim.start(() => draw(), 60);
 
 // Redraw on resize
 process.stdout.on('resize', () => {
