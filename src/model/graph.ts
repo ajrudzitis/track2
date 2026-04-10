@@ -2,8 +2,8 @@
  * Track topology graph built from parsed map data.
  */
 
-import type { MapFile } from '../parser/types.js';
-import type { Segment, Platform, TrackGroup, Route } from './types.js';
+import type { MapFile, SwitchDef } from '../parser/types.js';
+import type { Segment, Platform, Switch, TrackGroup, Route } from './types.js';
 import { ANSI_COLORS } from './types.js';
 import { type Signal, generateSignals } from './signal.js';
 
@@ -27,17 +27,27 @@ export class TrackGraph {
 
       // Build west track segments
       for (const elem of groupDef.westTrack) {
-        const seg = elem.type === 'platform'
-          ? graph.createPlatform(elem.id, groupDef.name, 'west', mapFile.config.dwell)
-          : graph.createSegment(elem.id, 'plain', groupDef.name, 'west');
+        let seg: Segment;
+        if (elem.type === 'platform') {
+          seg = graph.createPlatform(elem.id, groupDef.name, 'west', mapFile.config.dwell);
+        } else if (elem.type === 'switch') {
+          seg = graph.createSwitch(elem.id, groupDef.name, 'west');
+        } else {
+          seg = graph.createSegment(elem.id, 'plain', groupDef.name, 'west');
+        }
         tg.westSegments.push(seg.id);
       }
 
       // Build east track segments
       for (const elem of groupDef.eastTrack) {
-        const seg = elem.type === 'platform'
-          ? graph.createPlatform(elem.id, groupDef.name, 'east', mapFile.config.dwell)
-          : graph.createSegment(elem.id, 'plain', groupDef.name, 'east');
+        let seg: Segment;
+        if (elem.type === 'platform') {
+          seg = graph.createPlatform(elem.id, groupDef.name, 'east', mapFile.config.dwell);
+        } else if (elem.type === 'switch') {
+          seg = graph.createSwitch(elem.id, groupDef.name, 'east');
+        } else {
+          seg = graph.createSegment(elem.id, 'plain', groupDef.name, 'east');
+        }
         tg.eastSegments.push(seg.id);
       }
 
@@ -52,9 +62,23 @@ export class TrackGraph {
       graph.trackGroups.push(tg);
     }
 
+    graph.linkSwitches(mapFile.switches);
     graph.resolveRoutes(mapFile);
 
     return graph;
+  }
+
+  private linkSwitches(switchDefs: SwitchDef[]): void {
+    for (const def of switchDefs) {
+      const from = this.segments.get(def.from) as Switch;
+      const to = this.segments.get(def.to) as Switch;
+      if (!from || !to) continue;
+
+      // Link them as a single diagonal connection.
+      // from -> to represents an Eastbound crossover path.
+      from.divergingNext = to.id;
+      to.divergingPrev = from.id;
+    }
   }
 
   private resolveRoutes(mapFile: MapFile): void {
@@ -100,6 +124,14 @@ export class TrackGraph {
   }
 
   /**
+   * Find the segment ID for a platform with the given abbreviation on ANY track within a track group.
+   */
+  findPlatformInGroup(abbr: string, trackGroupName: string): string | undefined {
+    return this.findPlatformOnTrack(abbr, trackGroupName, 'west') ||
+           this.findPlatformOnTrack(abbr, trackGroupName, 'east');
+  }
+
+  /**
    * Get the segment IDs within a route's extent on a given track
    * (from first route platform to last route platform, inclusive of all segments between).
    */
@@ -108,20 +140,19 @@ export class TrackGraph {
     if (!tg) return [];
     const segmentIds = trackDirection === 'west' ? tg.westSegments : tg.eastSegments;
 
-    const firstPlatId = this.findPlatformOnTrack(route.platformAbbrs[0], route.trackGroupName, trackDirection);
-    const lastPlatId = this.findPlatformOnTrack(route.platformAbbrs[route.platformAbbrs.length - 1], route.trackGroupName, trackDirection);
-    if (!firstPlatId || !lastPlatId) return [];
+    const platIds = route.platformAbbrs
+      .map(abbr => this.findPlatformOnTrack(abbr, route.trackGroupName, trackDirection))
+      .filter((id): id is string => id !== undefined);
 
-    const startIdx = segmentIds.indexOf(firstPlatId);
-    const endIdx = segmentIds.indexOf(lastPlatId);
-    if (startIdx < 0 || endIdx < 0) return [];
+    if (platIds.length === 0) return [];
 
-    const lo = Math.min(startIdx, endIdx);
-    const hi = Math.max(startIdx, endIdx);
-    return segmentIds.slice(lo, hi + 1);
+    const indices = platIds.map(id => segmentIds.indexOf(id));
+    const startIdx = Math.min(...indices);
+    const endIdx = Math.max(...indices);
+    return segmentIds.slice(startIdx, endIdx + 1);
   }
 
-  private createSegment(id: string, type: 'plain' | 'platform', trackGroupName: string, direction: 'west' | 'east'): Segment {
+  private createSegment(id: string, type: 'plain' | 'platform' | 'switch', trackGroupName: string, direction: 'west' | 'east'): Segment {
     const seg: Segment = {
       id,
       type,
@@ -159,5 +190,26 @@ export class TrackGraph {
       curr.next = next.id;
       next.prev = curr.id;
     }
+  }
+
+  private createSwitch(id: string, trackGroupName: string, direction: 'west' | 'east'): Switch {
+    let sw = this.segments.get(id) as Switch;
+    if (sw && sw.type === 'switch') return sw;
+
+    sw = {
+      id,
+      type: 'switch',
+      displayWidth: 20, // Enough for a clean diagonal without excessive space
+      trackGroupName,
+      trackDirection: direction,
+      next: null,
+      prev: null,
+      divergingNext: null,
+      divergingPrev: null,
+      state: 'straight',
+      lockedBy: null,
+    };
+    this.segments.set(id, sw);
+    return sw;
   }
 }

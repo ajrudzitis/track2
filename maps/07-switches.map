@@ -1,0 +1,21 @@
+config
+  speed: 2.0
+  dwell: 5s
+end
+
+trackgroup Line1
+  west: [WST] ---W1--- <SW1> ---W2--- <SW3> ---W3--- [WEN]
+  east: [EST] ---E1--- <SW2> ---E2--- <SW4> ---E3--- [EEN]
+end
+
+switches
+  SW1 -> SW2
+  SW4 -> SW3
+end
+
+route FullLoop
+  color: yellow
+  platforms: WST, EEN, EST, WEN
+  trains: 1
+  trackgroup: Line1
+end

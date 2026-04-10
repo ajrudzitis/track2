@@ -33,4 +33,4 @@ maps/                  # Example .map files
 
 ## Status
 
-Phase 6 complete — named routes with configurable colors and train counts. Multiple trains per route distributed across both tracks with signal-based queueing. Partial-line routes reverse at route-defined terminus platforms. Backward compatible with older maps.
+Phase 7 complete — implemented switches (branch and crossover) with explicit connection syntax in `.map` files. Trains now automatically route through switches to reach their destination platforms. Signals guarding switches display directional arrows (→, ↗, ↘) based on the active path. Visual diagonal rendering for crossovers.

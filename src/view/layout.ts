@@ -4,6 +4,7 @@
 
 import type { TrackGraph } from '../model/graph.js';
 import type { Signal } from '../model/signal.js';
+import type { Switch } from '../model/types.js';
 
 export interface SegmentLayout {
   segmentId: string;
@@ -32,10 +33,19 @@ export interface TrackGroupLayout {
   eastSignalLabelY: number;
 }
 
+export interface SwitchLayout {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  isActive: boolean;
+}
+
 export interface LayoutResult {
   segments: Map<string, SegmentLayout>;
   signals: SignalLayout[];
   trackGroups: TrackGroupLayout[];
+  switches: SwitchLayout[];
 }
 
 const PADDING_LEFT = 2;
@@ -113,6 +123,33 @@ export function computeLayout(graph: TrackGraph): LayoutResult {
     currentY = eastSignalLabelY + 3; // gap before next track group
   }
 
+  // Populate switch connections
+  const switches: SwitchLayout[] = [];
+  for (const segId of graph.segments.keys()) {
+    const seg = graph.segments.get(segId)!;
+    if (seg.type === 'switch') {
+      const sw = seg as Switch;
+      if (sw.divergingNext) {
+        const fromLayout = segments.get(sw.id);
+        const toLayout = segments.get(sw.divergingNext);
+        if (fromLayout && toLayout) {
+          // Ensure crossovers always slant 'forward' (left-to-right)
+          // by using the 1/4 point for the start and 3/4 point for the end.
+          const fromX = fromLayout.x + Math.floor(fromLayout.width * 0.25);
+          const toX = toLayout.x + Math.floor(toLayout.width * 0.75);
+
+          switches.push({
+            fromX,
+            fromY: fromLayout.y,
+            toX,
+            toY: toLayout.y,
+            isActive: false,
+          });
+        }
+      }
+    }
+  }
+
   // Position signals at segment boundaries
   for (const signal of graph.signals) {
     const beforeLayout = segments.get(signal.segmentBefore);
@@ -148,5 +185,5 @@ export function computeLayout(graph: TrackGraph): LayoutResult {
     });
   }
 
-  return { segments, signals, trackGroups };
+  return { segments, signals, trackGroups, switches };
 }

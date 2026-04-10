@@ -2,7 +2,7 @@
  * Signal model. Signals guard segment boundaries and prevent collisions.
  */
 
-export type SignalState = 'red' | 'green';
+export type SignalState = 'red' | 'green' | 'straight' | 'diverge_up' | 'diverge_down';
 
 export interface Signal {
   id: string;

@@ -2,7 +2,7 @@
  * Parser for .map files. Block-oriented: config...end, trackgroup...end, route...end.
  */
 
-import type { MapFile, MapConfig, TrackGroupDef, TrackElement, RouteDef } from './types.js';
+import type { MapFile, MapConfig, TrackGroupDef, TrackElement, RouteDef, SwitchDef } from './types.js';
 
 const DEFAULT_CONFIG: MapConfig = {
   speed: 1.0,
@@ -16,6 +16,7 @@ export function parseMapFile(source: string): MapFile {
     config: { ...DEFAULT_CONFIG },
     trackGroups: [],
     routes: [],
+    switches: [],
   };
 
   let i = 0;
@@ -41,12 +42,34 @@ export function parseMapFile(source: string): MapFile {
       const [route, next] = parseRouteBlock(name, lines, i + 1);
       result.routes.push(route);
       i = next;
+    } else if (line === 'switches') {
+      const [sws, next] = parseSwitchesBlock(lines, i + 1);
+      result.switches = sws;
+      i = next;
     } else {
       i++;
     }
   }
 
   return result;
+}
+
+function parseSwitchesBlock(lines: string[], start: number): [SwitchDef[], number] {
+  const switches: SwitchDef[] = [];
+  let i = start;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    if (line === 'end') return [switches, i + 1];
+    if (line === '' || line.startsWith('%%')) { i++; continue; }
+
+    // Parse sw1 -> sw2
+    const parts = line.split('->').map(s => s.trim());
+    if (parts.length === 2) {
+      switches.push({ from: parts[0], to: parts[1] });
+    }
+    i++;
+  }
+  return [switches, i];
 }
 
 function parseConfigBlock(lines: string[], start: number): [Partial<MapConfig>, number] {
@@ -88,13 +111,16 @@ function parseTrackGroupBlock(name: string, lines: string[], start: number): [Tr
 
 function parseTrackLine(line: string): TrackElement[] {
   const elements: TrackElement[] = [];
-  // Match [PLATFORM_ID] and ---segment_id--- patterns
-  const tokens = line.match(/\[[^\]]+\]|---[^-]+---/g) || [];
+  // Match [PLATFORM_ID], ---segment_id---, and <switch_id> patterns
+  const tokens = line.match(/\[[^\]]+\]|---[^-]+---|<[^>]+>/g) || [];
   for (const token of tokens) {
-    if (token.startsWith('[') && token.endsWith(']')) {
-      elements.push({ type: 'platform', id: token.slice(1, -1) });
-    } else if (token.startsWith('---') && token.endsWith('---')) {
-      elements.push({ type: 'segment', id: token.slice(3, -3) });
+    const t = token.trim();
+    if (t.startsWith('[') && t.endsWith(']')) {
+      elements.push({ type: 'platform', id: t.slice(1, -1) });
+    } else if (t.startsWith('---') && t.endsWith('---')) {
+      elements.push({ type: 'segment', id: t.slice(3, -3) });
+    } else if (t.startsWith('<') && t.endsWith('>')) {
+      elements.push({ type: 'switch', id: t.slice(1, -1) });
     }
   }
   return elements;

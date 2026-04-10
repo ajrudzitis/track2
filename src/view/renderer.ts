@@ -5,7 +5,8 @@
 import { type ScreenBuffer, type CellStyle } from './terminal.js';
 import type { LayoutResult, SegmentLayout } from './layout.js';
 import type { TrackGraph } from '../model/graph.js';
-import type { Platform, Train } from '../model/types.js';
+import type { Platform, Train, Switch } from '../model/types.js';
+import type { Signal } from '../model/signal.js';
 
 const TRACK_CHAR = '━';
 const BOUNDARY_CHAR = '┿';
@@ -50,6 +51,7 @@ export class Renderer {
     this.screen.clear();
     if (this.layout && this.graph) {
       this.drawSegments();
+      this.drawSwitches();
       this.drawSignals();
       this.drawTrains();
     }
@@ -88,12 +90,43 @@ export class Renderer {
     }
   }
 
+  private drawSwitches(): void {
+    if (!this.layout || !this.graph) return;
+
+    for (const sw of this.layout.switches) {
+      const x1 = sw.fromX;
+      const y1 = sw.fromY;
+      const x2 = sw.toX;
+      const y2 = sw.toY;
+
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      
+      // Step by vertical lines (dy) to ensure one character per horizontal line
+      const steps = Math.abs(dy);
+
+      for (let i = 0; i <= steps; i++) {
+        const y = y1 + Math.round(i * Math.sign(dy));
+        const x = x1 + Math.round(i * dx / steps);
+        
+        // Skip endpoints on the track lines
+        if (y === y1 || y === y2) continue;
+
+        let char = (dx * dy > 0) ? '╲' : '╱';
+        if (dx === 0) char = '┃';
+        
+        this.screen.put(x, y, char, TRACK_STYLE);
+      }
+    }
+  }
+
   private drawSignals(): void {
     if (!this.layout) return;
 
     for (const sl of this.layout.signals) {
-      const style = sl.signal.state === 'green' ? SIGNAL_GREEN : SIGNAL_RED;
-      this.screen.put(sl.x, sl.symbolY, SIGNAL_CHAR, style);
+      const style = sl.signal.state === 'red' ? SIGNAL_RED : SIGNAL_GREEN;
+      const symbol = this.getSignalSymbol(sl.signal);
+      this.screen.put(sl.x, sl.symbolY, symbol, style);
 
       // Position labels to avoid overlap:
       // East-facing label ends at signal x, west-facing label starts at signal x
@@ -105,6 +138,19 @@ export class Renderer {
     }
   }
 
+  private getSignalSymbol(signal: Signal): string {
+    if (signal.state === 'red') return '●';
+    if (signal.state === 'green') return '●';
+
+    const isEast = signal.facingDirection === 'east';
+    switch (signal.state) {
+      case 'straight': return isEast ? '→' : '←';
+      case 'diverge_up': return isEast ? '↗' : '↖';
+      case 'diverge_down': return isEast ? '↘' : '↙';
+      default: return '●';
+    }
+  }
+
   private drawTrains(): void {
     if (!this.layout) return;
 
@@ -112,27 +158,70 @@ export class Renderer {
       const sl = this.layout.segments.get(train.segmentId);
       if (!sl) continue;
 
+      const seg = this.graph.segments.get(train.segmentId)!;
       const trainStyle: CellStyle = { fg: 30, bg: train.color, bold: true, inverse: false };
+      const trainText = train.direction === 'west' ? WEST_ARROW + train.id : train.id + EAST_ARROW;
+      
+      let trainX: number;
+      let trainY: number = sl.y;
 
-      // Build train text: ◂1001 (westbound) or 1001▸ (eastbound)
-      const trainText = train.direction === 'west'
-        ? WEST_ARROW + train.id
-        : train.id + EAST_ARROW;
+      if (seg.type === 'switch' && (seg as Switch).state === 'diverging') {
+        const sw = seg as Switch;
+        // Find the switch layout that involves this segment
+        const swl = this.layout.switches.find(s => 
+          (this.graph?.segments.get(train.segmentId)?.id === sw.id && 
+           (sw.divergingNext === this.graph?.segments.get(train.segmentId)?.id || // Is 'to' side
+            sw.divergingNext !== null)) // Is 'from' side
+        );
 
-      // Position train within the segment based on position (0.0–1.0)
-      const trainWidth = trainText.length;
-      const usableWidth = sl.width - trainWidth;
-      const trainX = sl.x + Math.round(train.position * usableWidth);
+        // More robust check: find the layout where this segment is either from or to
+        const layoutForThisSwitch = this.layout.switches.find(l => {
+          const fromSeg = Array.from(this.layout!.segments.entries()).find(([_, s]) => s.x + s.width/2 === l.fromX && s.y === l.fromY);
+          const toSeg = Array.from(this.layout!.segments.entries()).find(([_, s]) => s.x + s.width/2 === l.toX && s.y === l.toY);
+          return fromSeg?.[0] === train.segmentId || toSeg?.[0] === train.segmentId;
+        });
+
+        if (layoutForThisSwitch) {
+          const l = layoutForThisSwitch;
+          const isFromSide = Array.from(this.layout.segments.entries()).find(([id, s]) => id === train.segmentId && s.x + s.width/2 === l.fromX && s.y === l.fromY) !== undefined;
+
+          // Always interpolate from 'from' to 'to'
+          const startX = l.fromX;
+          const endX = l.toX;
+          const startY = l.fromY;
+          const endY = l.toY;
+
+          // If we are on the 'from' side, we go from 0.0 to 0.5 of the crossover as position goes 0.25 to 0.5
+          // If we are on the 'to' side, we go from 0.5 to 1.0 of the crossover as position goes 0.5 to 0.75
+          let t: number;
+          if (isFromSide) {
+            // Map 0.25 -> 0.5 to t = 0.0 -> 0.5
+            t = Math.max(0, (train.position - 0.25)) / 0.5;
+          } else {
+            // Map 0.5 -> 0.75 to t = 0.5 -> 1.0
+            t = 0.5 + Math.min(0.5, (train.position - 0.5)) / 0.5;
+          }
+          
+          t = Math.max(0, Math.min(1, t));
+          trainX = Math.round(startX + t * (endX - startX) - trainText.length / 2);
+          trainY = Math.round(startY + t * (endY - startY));
+        } else {
+          trainX = sl.x + Math.round(train.position * (sl.width - trainText.length));
+        }
+      } else {
+        trainX = sl.x + Math.round(train.position * (sl.width - trainText.length));
+      }
 
       for (let i = 0; i < trainText.length; i++) {
-        this.screen.put(trainX + i, sl.y, trainText[i], trainStyle);
+        this.screen.put(trainX + i, trainY, trainText[i], trainStyle);
       }
     }
   }
 
   private drawStatusBar(): void {
     const y = this.screen.height - 1;
-    const status = `  Track2 v0.1  │  +/-: speed  │  q: quit  │  ${this.speedDisplay}`;
+    const trainCount = this.trains.length;
+    const status = `  Track2 v0.1  │  Trains: ${trainCount}  │  +/-: speed  │  q: quit  │  ${this.speedDisplay}`;
     this.screen.putString(0, y, status, STATUS_STYLE);
   }
 }

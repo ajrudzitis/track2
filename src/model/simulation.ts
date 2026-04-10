@@ -2,7 +2,7 @@
  * Simulation engine: game loop, train movement, signal interlocking, platform dwell.
  */
 
-import type { Train, Segment, Platform, Route } from './types.js';
+import type { Train, Segment, Platform, Switch, Route } from './types.js';
 import { ANSI_COLORS } from './types.js';
 import type { Signal } from './signal.js';
 import type { TrackGraph } from './graph.js';
@@ -60,6 +60,7 @@ export class Simulation {
           color: colorCode,
           trackGroupName: tg.name,
           trackDirection: 'west',
+          lastPlatformIndex: 0,
         });
       }
 
@@ -76,6 +77,7 @@ export class Simulation {
           color: colorCode,
           trackGroupName: tg.name,
           trackDirection: 'east',
+          lastPlatformIndex: 0,
         });
       }
     }
@@ -120,14 +122,37 @@ export class Simulation {
       }
       occupiedSegments.add(segmentId);
 
-      // Alternate initial direction for natural spacing
-      const direction = (i % 2 === 0)
-        ? (trackDirection === 'west' ? 'west' : 'east')
-        : (trackDirection === 'west' ? 'east' : 'west');
-
       const id = (idOffset + i < route.trainIds.length)
         ? route.trainIds[idOffset + i]
         : this.generateId();
+
+      // Find initial route progress
+      let lastPlatformIndex = 0;
+      const seg = this.graph.segments.get(segmentId);
+      if (seg?.type === 'platform') {
+        const idx = route.platformAbbrs.indexOf((seg as Platform).stationAbbr);
+        if (idx >= 0) lastPlatformIndex = idx;
+      }
+
+      // Determine initial direction based on route
+      let direction: 'west' | 'east';
+      const nextIdx = (lastPlatformIndex + 1) % route.platformAbbrs.length;
+      const nextAbbr = route.platformAbbrs[nextIdx];
+      const targetId = this.graph.findPlatformInGroup(nextAbbr, route.trackGroupName);
+      
+      if (targetId) {
+        // Simple reachability check to see which way to go
+        const tg = this.graph.trackGroups.find(t => t.name === route.trackGroupName);
+        const segmentIds = trackDirection === 'west' ? tg!.westSegments : tg!.eastSegments;
+        const currentIdx = segmentIds.indexOf(segmentId);
+        
+        // If target is on the same track, head toward it.
+        // If not, head toward the switch that leads to the other track.
+        // For now, simpler: if currentIdx is low, go east; if high, go west.
+        direction = (currentIdx < segmentIds.length / 2) ? 'east' : 'west';
+      } else {
+        direction = (trackDirection === 'west') ? 'west' : 'east';
+      }
 
       this.trains.push({
         id,
@@ -140,6 +165,7 @@ export class Simulation {
         trackGroupName: route.trackGroupName,
         trackDirection,
         routeId: route.name,
+        lastPlatformIndex,
       });
     }
   }
@@ -178,6 +204,7 @@ export class Simulation {
     const dt = dtBase * this.speed;
 
     for (const train of this.trains) {
+      this.autoRouteTrain(train);
       this.updateTrain(train, dt);
     }
 
@@ -199,7 +226,6 @@ export class Simulation {
     }
 
     if (train.state === 'stopped') {
-      // Check if the signal ahead has turned green
       if (this.canProceed(train)) {
         train.state = 'running';
       } else {
@@ -208,7 +234,7 @@ export class Simulation {
     }
 
     // Move the train
-    const speed = dt / BASE_SEGMENT_TIME; // fraction of segment per tick
+    const speed = dt / BASE_SEGMENT_TIME;
     const prevPosition = train.position;
     if (train.direction === 'east') {
       train.position += speed;
@@ -216,12 +242,27 @@ export class Simulation {
       train.position -= speed;
     }
 
-    // Check if train crossed the midpoint of a platform (dwell point)
     if (this.checkMidpointDwell(train, prevPosition)) {
       return;
     }
 
-    // Check segment transition
+    // Handle midpoint transition for diverging switches
+    const seg = this.graph.segments.get(train.segmentId)!;
+    if (seg.type === 'switch' && (seg as Switch).state === 'diverging') {
+      const sw = seg as Switch;
+      if (train.direction === 'east' && prevPosition < 0.5 && train.position >= 0.5) {
+        if (sw.divergingNext) {
+          this.enterSegment(train, sw.divergingNext, 0.5);
+          return;
+        }
+      } else if (train.direction === 'west' && prevPosition > 0.5 && train.position <= 0.5) {
+        if (sw.divergingPrev) {
+          this.enterSegment(train, sw.divergingPrev, 0.5);
+          return;
+        }
+      }
+    }
+
     if (train.position >= 1.0) {
       this.transitionForward(train);
     } else if (train.position <= 0.0) {
@@ -229,62 +270,243 @@ export class Simulation {
     }
   }
 
-  /**
-   * Train reached the right end of its segment (position >= 1.0).
-   * For eastbound: advance to next segment.
-   */
-  private transitionForward(train: Train): void {
+  private autoRouteTrain(train: Train): void {
     const seg = this.graph.segments.get(train.segmentId)!;
+    const nextId = train.direction === 'east' ? seg.next : seg.prev;
 
-    if (train.direction === 'east') {
-      if (seg.next && this.canEnterSegment(seg.next, train)) {
-        const overflow = train.position - 1.0;
-        this.enterSegment(train, seg.next, overflow);
-      } else if (seg.next) {
-        // Blocked by signal — stop at boundary
-        train.position = 0.99;
-        train.state = 'stopped';
-      } else {
-        // End of track — reverse direction
-        train.position = 0.5;
-        train.direction = 'west';
+    if (!nextId) return;
+    const nextSeg = this.graph.segments.get(nextId)!;
+    if (nextSeg.type !== 'switch') return;
+
+    const sw = nextSeg as Switch;
+    if (sw.lockedBy && sw.lockedBy !== train.id) return;
+
+    const linkedId = train.direction === 'east' ? sw.divergingNext : sw.divergingPrev;
+    const linked = linkedId ? (this.graph.segments.get(linkedId) as Switch) : null;
+
+    if (linked && linked.lockedBy && linked.lockedBy !== train.id) {
+      // Must stay straight if linked side is busy
+      sw.state = 'straight';
+      linked.state = 'straight';
+      return;
+    }
+
+    // Determine path based on route
+    const shouldDiverge = this.shouldTrainDiverge(train, sw);
+    
+    if (shouldDiverge && linked) {
+      sw.state = 'diverging';
+      linked.state = 'diverging';
+      // Reserve both early
+      sw.lockedBy = train.id;
+      linked.lockedBy = train.id;
+    } else {
+      sw.state = 'straight';
+      if (linked) {
+        linked.state = 'straight';
+        // Note: we don't clear lockedBy here if the train is actually *on* the switch.
+        // That is handled in enterSegment/updateTrain.
       }
     }
   }
 
-  /**
-   * Train reached the left end of its segment (position <= 0.0).
-   * For westbound: advance to prev segment.
-   */
+  private shouldTrainDiverge(train: Train, sw: Switch): boolean {
+    if (!train.routeId) return false;
+    const route = this.graph.routes.find(r => r.name === train.routeId);
+    if (!route) return false;
+
+    // Find next platform in route
+    const currentPlatIdx = train.lastPlatformIndex ?? 0;
+    const nextPlatAbbr = route.platformAbbrs[(currentPlatIdx + 1) % route.platformAbbrs.length];
+    
+    // Search both tracks of the track group to find the destination platform
+    const targetId = this.graph.findPlatformInGroup(nextPlatAbbr, route.trackGroupName);
+    if (!targetId) return false;
+
+    // A train should diverge if the target platform is NOT reachable on the current (straight) path,
+    // BUT it IS reachable by taking the diverging path.
+    const straightReachable = this.isSegmentReachable(sw.next, targetId, train.direction) ||
+                               this.isSegmentReachable(sw.prev, targetId, train.direction);
+    const divergingReachable = this.isSegmentReachable(sw.divergingNext, targetId, train.direction) ||
+                                 this.isSegmentReachable(sw.divergingPrev, targetId, train.direction);
+
+    if (straightReachable) return false;
+    if (divergingReachable) return true;
+
+    return false;
+  }
+
+  private isSegmentReachable(startId: string | null, targetId: string, direction: 'west' | 'east'): boolean {
+    let curr = startId;
+    const visited = new Set<string>();
+    while (curr && !visited.has(curr)) {
+      if (curr === targetId) return true;
+      visited.add(curr);
+      const seg = this.graph.segments.get(curr);
+      if (!seg) break;
+      curr = direction === 'east' ? seg.next : seg.prev;
+    }
+    return false;
+  }
+
+  private transitionForward(train: Train): void {
+    const seg = this.graph.segments.get(train.segmentId)!;
+    if (train.direction !== 'east') return;
+
+    // Divergence is handled at 0.5, so at 1.0 we always follow the straight path out
+    const targetId = seg.next;
+
+    if (targetId && this.canEnterSegment(targetId, train)) {
+      const overflow = train.position - 1.0;
+      this.enterSegment(train, targetId, overflow);
+    } else if (targetId) {
+      train.position = 0.99;
+      train.state = 'stopped';
+    } else {
+      // End of track - reverse
+      train.position = 0.5;
+      train.direction = 'west';
+    }
+  }
+
   private transitionBackward(train: Train): void {
     const seg = this.graph.segments.get(train.segmentId)!;
+    if (train.direction !== 'west') return;
 
-    if (train.direction === 'west') {
-      if (seg.prev && this.canEnterSegment(seg.prev, train)) {
-        const overflow = -train.position;
-        this.enterSegment(train, seg.prev, 1.0 - overflow);
-      } else if (seg.prev) {
-        // Blocked by signal
-        train.position = 0.01;
-        train.state = 'stopped';
-      } else {
-        // End of track — reverse direction
-        train.position = 0.5;
-        train.direction = 'east';
-      }
+    // Divergence is handled at 0.5, so at 0.0 we always follow the straight path out
+    const targetId = seg.prev;
+
+    if (targetId && this.canEnterSegment(targetId, train)) {
+      const overflow = -train.position;
+      this.enterSegment(train, targetId, 1.0 - overflow);
+    } else if (targetId) {
+      train.position = 0.01;
+      train.state = 'stopped';
+    } else {
+      // End of track - reverse
+      train.position = 0.5;
+      train.direction = 'east';
     }
   }
 
   private enterSegment(train: Train, segmentId: string, position: number): void {
+    const prevSeg = this.graph.segments.get(train.segmentId);
+    if (prevSeg?.type === 'switch') {
+      const sw = prevSeg as Switch;
+      sw.lockedBy = null;
+      // Also unlock linked switch if we're done with the crossover
+      if (sw.state === 'diverging') {
+        const linkedId = train.direction === 'east' ? sw.divergingNext : sw.divergingPrev;
+        if (linkedId) {
+          const linked = this.graph.segments.get(linkedId) as Switch;
+          if (linked) linked.lockedBy = null;
+        }
+      }
+    }
+
     train.segmentId = segmentId;
     train.position = Math.max(0.01, Math.min(0.99, position));
+    
+    const nextSeg = this.graph.segments.get(segmentId);
+    if (nextSeg) {
+      train.trackGroupName = nextSeg.trackGroupName;
+      train.trackDirection = nextSeg.trackDirection;
+      if (nextSeg.type === 'switch') {
+        const sw = nextSeg as Switch;
+        sw.lockedBy = train.id;
+      }
+    }
   }
 
-  /**
-   * Check if the train just crossed the midpoint (0.5) of a platform segment.
-   * If so, snap to 0.5, dwell, and possibly reverse at terminus.
-   * Returns true if the train began dwelling.
-   */
+  private canEnterSegment(segmentId: string, requestingTrain: Train): boolean {
+    for (const train of this.trains) {
+      if (train !== requestingTrain && train.segmentId === segmentId) {
+        return false;
+      }
+    }
+
+    const targetSeg = this.graph.segments.get(segmentId);
+    if (targetSeg?.type === 'switch') {
+      const sw = targetSeg as Switch;
+      if (sw.lockedBy && sw.lockedBy !== requestingTrain.id) return false;
+    }
+
+    return this.isSignalGreen(requestingTrain, segmentId);
+  }
+
+  private canProceed(train: Train): boolean {
+    const seg = this.graph.segments.get(train.segmentId)!;
+    const targetId = (train.direction === 'east')
+      ? ((seg.type === 'switch' && (seg as Switch).state === 'diverging') ? (seg as Switch).divergingNext : seg.next)
+      : ((seg.type === 'switch' && (seg as Switch).state === 'diverging') ? (seg as Switch).divergingPrev : seg.prev);
+
+    if (!targetId) return true;
+    return this.canEnterSegment(targetId, train);
+  }
+
+  private updateSignals(): void {
+    const occupiedSegments = new Set(this.trains.map(t => t.segmentId));
+
+    for (const signal of this.graph.signals) {
+      const guardedId = signal.segmentAfter;
+      const guardedSeg = this.graph.segments.get(guardedId);
+
+      // 1. Basic occupancy check for the guarded segment itself
+      if (occupiedSegments.has(guardedId)) {
+        signal.state = 'red';
+        continue;
+      }
+
+      // 2. Crossover Interlocking: if it's a switch, check its linked pair
+      if (guardedSeg?.type === 'switch') {
+        const sw = guardedSeg as Switch;
+        const linkedId = signal.facingDirection === 'east' ? sw.divergingNext : sw.divergingPrev;
+        if (linkedId && occupiedSegments.has(linkedId)) {
+          signal.state = 'red';
+          continue;
+        }
+
+        const isEast = signal.facingDirection === 'east';
+        const canGoStraight = isEast ? sw.next !== null : sw.prev !== null;
+        const canDiverge = isEast ? sw.divergingNext !== null : sw.divergingPrev !== null;
+
+        if (canGoStraight && canDiverge) {
+          // Point approach (choice)
+          if (sw.state === 'straight') {
+            signal.state = 'straight';
+          } else {
+            const targetId = isEast ? sw.divergingNext : sw.divergingPrev;
+            const targetSeg = targetId ? this.graph.segments.get(targetId) : null;
+            if (sw.trackDirection === 'west' && targetSeg?.trackDirection === 'east') {
+              signal.state = 'diverge_down';
+            } else if (sw.trackDirection === 'east' && targetSeg?.trackDirection === 'west') {
+              signal.state = 'diverge_up';
+            } else {
+              signal.state = 'diverge_up';
+            }
+          }
+        } else {
+          // Trailing approach (no choice)
+          const isCorrect = sw.state === 'straight' ? canGoStraight : canDiverge;
+          signal.state = isCorrect ? 'green' : 'red';
+        }
+      } else {
+        signal.state = 'green';
+      }
+    }
+  }
+
+  private isSignalGreen(train: Train, targetSegmentId: string): boolean {
+    for (const signal of this.graph.signals) {
+      if (signal.segmentAfter === targetSegmentId &&
+          signal.segmentBefore === train.segmentId &&
+          signal.facingDirection === train.direction) {
+        return signal.state !== 'red'; // Any non-red is proceed
+      }
+    }
+    return true;
+  }
+
   private checkMidpointDwell(train: Train, prevPosition: number): boolean {
     const seg = this.graph.segments.get(train.segmentId);
     if (seg?.type !== 'platform') return false;
@@ -295,6 +517,15 @@ export class Simulation {
     if (crossedEast || crossedWest) {
       const plat = seg as Platform;
       train.position = 0.5;
+
+      if (train.routeId) {
+        const route = this.graph.routes.find(r => r.name === train.routeId);
+        if (route) {
+          const idx = route.platformAbbrs.indexOf(plat.stationAbbr);
+          if (idx >= 0) train.lastPlatformIndex = idx;
+        }
+      }
+
       this.checkTerminusReversal(train);
       train.state = 'dwelling';
       train.dwellRemaining = plat.dwellTime;
@@ -304,10 +535,6 @@ export class Simulation {
     return false;
   }
 
-  /**
-   * Check if this platform is a terminus (first or last platform on the track/route).
-   * If so, reverse the train's direction.
-   */
   private checkTerminusReversal(train: Train): void {
     if (train.routeId) {
       this.checkRouteTerminusReversal(train);
@@ -334,64 +561,31 @@ export class Simulation {
 
     const firstAbbr = route.platformAbbrs[0];
     const lastAbbr = route.platformAbbrs[route.platformAbbrs.length - 1];
-    const firstPlatId = this.graph.findPlatformOnTrack(firstAbbr, route.trackGroupName, train.trackDirection);
-    const lastPlatId = this.graph.findPlatformOnTrack(lastAbbr, route.trackGroupName, train.trackDirection);
+    
+    const seg = this.graph.segments.get(train.segmentId);
+    if (seg?.type !== 'platform') return;
+    const plat = seg as Platform;
+    const abbr = plat.stationAbbr;
 
-    if (train.direction === 'east' && train.segmentId === lastPlatId) {
+    // Route-based reversal
+    if (train.direction === 'east' && abbr === lastAbbr) {
       train.direction = 'west';
-    } else if (train.direction === 'west' && train.segmentId === firstPlatId) {
+      return;
+    } 
+    if (train.direction === 'west' && abbr === firstAbbr) {
       train.direction = 'east';
+      return;
     }
-  }
 
-  /**
-   * Check if a train can enter a segment: no other train occupies it.
-   */
-  private canEnterSegment(segmentId: string, requestingTrain: Train): boolean {
-    for (const train of this.trains) {
-      if (train !== requestingTrain && train.segmentId === segmentId) {
-        return false;
+    // Physical terminus-based reversal (requested by user)
+    const tg = this.graph.trackGroups.find(t => t.name === train.trackGroupName);
+    if (tg) {
+      const segments = train.trackDirection === 'west' ? tg.westSegments : tg.eastSegments;
+      if (train.direction === 'east' && train.segmentId === segments[segments.length - 1]) {
+        train.direction = 'west';
+      } else if (train.direction === 'west' && train.segmentId === segments[0]) {
+        train.direction = 'east';
       }
-    }
-    // Also check the guarding signal
-    return this.isSignalGreen(requestingTrain, segmentId);
-  }
-
-  /**
-   * Check if the signal guarding entry from the train's current segment
-   * into the target segment is green.
-   */
-  private isSignalGreen(train: Train, targetSegmentId: string): boolean {
-    for (const signal of this.graph.signals) {
-      if (signal.segmentAfter === targetSegmentId &&
-          signal.segmentBefore === train.segmentId &&
-          signal.facingDirection === train.direction) {
-        return signal.state === 'green';
-      }
-    }
-    // No signal guarding this boundary — allow passage
-    return true;
-  }
-
-  /**
-   * Check if the signal directly ahead of the train is green (for resuming from stopped).
-   */
-  private canProceed(train: Train): boolean {
-    const seg = this.graph.segments.get(train.segmentId)!;
-    const nextSegId = train.direction === 'east' ? seg.next : seg.prev;
-    if (!nextSegId) return true;
-    return this.canEnterSegment(nextSegId, train);
-  }
-
-  /**
-   * Update all signals based on segment occupancy.
-   * A signal turns red if its guarded segment is occupied.
-   */
-  private updateSignals(): void {
-    const occupiedSegments = new Set(this.trains.map(t => t.segmentId));
-
-    for (const signal of this.graph.signals) {
-      signal.state = occupiedSegments.has(signal.segmentAfter) ? 'red' : 'green';
     }
   }
 }

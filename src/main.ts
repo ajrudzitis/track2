@@ -31,6 +31,7 @@ renderer.setData(graph, layout);
 
 // Set up simulation
 const sim = new Simulation(graph);
+sim.setSpeed(mapData.config.speed);
 if (graph.routes.length > 0) {
   sim.spawnRouteTrains();
 } else {

@@ -54,11 +54,11 @@
 - [x] Create maps/06-routes.map
 
 ## Phase 7: Switches (Branch + Crossover)
-- [ ] Switch segment type
-- [ ] Diagonal rendering (╲, ╱)
-- [ ] Switch state + signal integration
-- [ ] Parser support for switch syntax
-- [ ] Create maps/07-switches.map
+- [x] Switch segment type
+- [x] Diagonal rendering (╲, ╱)
+- [x] Switch state + signal integration
+- [x] Parser support for switch syntax
+- [x] Create maps/07-switches.map
 
 ## Phase 8: Terminal Behavior
 - [ ] End-of-line crossover logic

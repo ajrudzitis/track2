@@ -4,12 +4,12 @@
 
 export interface Segment {
   id: string;
-  type: 'plain' | 'platform';
+  type: 'plain' | 'platform' | 'switch';
   displayWidth: number;
   trackGroupName: string;
   trackDirection: 'west' | 'east';
-  next: string | null;  // next segment id
-  prev: string | null;  // prev segment id
+  next: string | null;  // next segment id (straight)
+  prev: string | null;  // prev segment id (straight)
 }
 
 export interface Platform extends Segment {
@@ -17,6 +17,14 @@ export interface Platform extends Segment {
   stationAbbr: string;   // 3-char abbreviation
   stationName: string;
   dwellTime: number;      // seconds
+}
+
+export interface Switch extends Segment {
+  type: 'switch';
+  divergingNext: string | null;
+  divergingPrev: string | null;
+  state: 'straight' | 'diverging';
+  lockedBy: string | null; // train ID currently traversing/locking the switch
 }
 
 export interface TrackGroup {
@@ -38,6 +46,7 @@ export interface Train {
   trackGroupName: string;
   trackDirection: 'west' | 'east'; // which track the train is on
   routeId?: string;          // name of the route this train belongs to
+  lastPlatformIndex?: number; // index of the last platform visited in the route
 }
 
 export interface Route {
