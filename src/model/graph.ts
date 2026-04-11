@@ -74,10 +74,16 @@ export class TrackGraph {
       const to = this.segments.get(def.to) as Switch;
       if (!from || !to) continue;
 
-      // Link them as a single diagonal connection.
+      // Link them as a diagonal connection.
       // from -> to represents an Eastbound crossover path.
       from.divergingNext = to.id;
       to.divergingPrev = from.id;
+
+      if (def.bidirectional) {
+        // Also link the other diagonal for Westbound crossover path.
+        to.divergingNext = from.id;
+        from.divergingPrev = to.id;
+      }
     }
   }
 

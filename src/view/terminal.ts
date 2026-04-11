@@ -73,6 +73,13 @@ export class ScreenBuffer {
     }
   }
 
+  getCharAt(x: number, y: number): string | undefined {
+    if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+      return this.cells[y][x].char;
+    }
+    return undefined;
+  }
+
   putString(x: number, y: number, str: string, style: CellStyle = DEFAULT_STYLE): void {
     for (let i = 0; i < str.length; i++) {
       this.put(x + i, y, str[i], style);

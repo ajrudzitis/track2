@@ -1,0 +1,27 @@
+config
+  speed: 2.0
+  dwell: 5s
+end
+
+trackgroup Line1
+  west: [WST] ---W1--- <SW1> ---W2--- [WEN]
+  east: [EST] ---E1--- <SW2> ---E2--- [EEN]
+end
+
+switches
+  SW1 <-> SW2
+end
+
+route Alfa
+  color: yellow
+  platforms: WST, EEN, EST, WEN
+  trains: 1
+  trackgroup: Line1
+end
+
+route Bravo
+  color: blue
+  platforms: WEN, WST, EEN, EST
+  trains: 1
+  trackgroup: Line1
+end

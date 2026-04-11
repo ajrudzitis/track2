@@ -62,10 +62,17 @@ function parseSwitchesBlock(lines: string[], start: number): [SwitchDef[], numbe
     if (line === 'end') return [switches, i + 1];
     if (line === '' || line.startsWith('%%')) { i++; continue; }
 
-    // Parse sw1 -> sw2
-    const parts = line.split('->').map(s => s.trim());
-    if (parts.length === 2) {
-      switches.push({ from: parts[0], to: parts[1] });
+    // Parse sw1 <-> sw2 or sw1 -> sw2
+    if (line.includes('<->')) {
+      const parts = line.split('<->').map(s => s.trim());
+      if (parts.length === 2) {
+        switches.push({ from: parts[0], to: parts[1], bidirectional: true });
+      }
+    } else if (line.includes('->')) {
+      const parts = line.split('->').map(s => s.trim());
+      if (parts.length === 2) {
+        switches.push({ from: parts[0], to: parts[1] });
+      }
     }
     i++;
   }

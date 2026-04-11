@@ -13,6 +13,7 @@ const BOUNDARY_CHAR = '┿';
 const BOUNDARY_LABEL_CHAR = '┃';
 const SIGNAL_CHAR = '●';
 const TRACK_STYLE: CellStyle = { fg: 37, bg: 40, bold: true, inverse: false };
+const ACTIVE_TRACK_STYLE: CellStyle = { fg: 32, bg: 40, bold: true, inverse: false };
 const LABEL_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
 const PLATFORM_LABEL_STYLE: CellStyle = { fg: 30, bg: 47, bold: true, inverse: false };
 const SIGNAL_RED: CellStyle = { fg: 31, bg: 40, bold: true, inverse: false };
@@ -93,29 +94,49 @@ export class Renderer {
   private drawSwitches(): void {
     if (!this.layout || !this.graph) return;
 
-    for (const sw of this.layout.switches) {
-      const x1 = sw.fromX;
-      const y1 = sw.fromY;
-      const x2 = sw.toX;
-      const y2 = sw.toY;
+    for (const swl of this.layout.switches) {
+      const fromNode = this.graph.segments.get(swl.fromId) as Switch;
+      const toNode = this.graph.segments.get(swl.toId) as Switch;
+      if (!fromNode || !toNode) continue;
+
+      const x1 = swl.fromX;
+      const y1 = swl.fromY;
+      const x2 = swl.toX;
+      const y2 = swl.toY;
 
       const dx = x2 - x1;
       const dy = y2 - y1;
       
-      // Step by vertical lines (dy) to ensure one character per horizontal line
       const steps = Math.abs(dy);
 
       for (let i = 0; i <= steps; i++) {
         const y = y1 + Math.round(i * Math.sign(dy));
         const x = x1 + Math.round(i * dx / steps);
         
-        // Skip endpoints on the track lines
         if (y === y1 || y === y2) continue;
+
+        // Determine if this step is a "corner" (adjacent to track)
+        const isStartCorner = (i === 1);
+        const isEndCorner = (i === steps - 1);
+        
+        // Highlight only the corners if their respective switch is diverging.
+        // The middle (including intersection) stays default color.
+        let style = TRACK_STYLE;
+        if (isStartCorner && fromNode.state === 'diverging') style = ACTIVE_TRACK_STYLE;
+        if (isEndCorner && toNode.state === 'diverging') style = ACTIVE_TRACK_STYLE;
 
         let char = (dx * dy > 0) ? '╲' : '╱';
         if (dx === 0) char = '┃';
         
-        this.screen.put(x, y, char, TRACK_STYLE);
+        // Detect intersection for double crossover (overlaid switches)
+        const existing = this.screen.getCharAt(x, y);
+        if ((char === '╲' && existing === '╱') || (char === '╱' && existing === '╲') || existing === '╳') {
+          char = '╳';
+          // The center X always stays default color per user request
+          style = TRACK_STYLE;
+        }
+        
+        this.screen.put(x, y, char, style);
       }
     }
   }

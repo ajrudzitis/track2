@@ -34,6 +34,8 @@ export interface TrackGroupLayout {
 }
 
 export interface SwitchLayout {
+  fromId: string;
+  toId: string;
   fromX: number;
   fromY: number;
   toX: number;
@@ -139,6 +141,8 @@ export function computeLayout(graph: TrackGraph): LayoutResult {
           const toX = toLayout.x + Math.floor(toLayout.width * 0.75);
 
           switches.push({
+            fromId: sw.id,
+            toId: sw.divergingNext,
             fromX,
             fromY: fromLayout.y,
             toX,

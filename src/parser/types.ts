@@ -28,6 +28,7 @@ export type TrackElement =
 export interface SwitchDef {
   from: string; // node ID
   to: string;   // node ID
+  bidirectional?: boolean;
 }
 
 export interface RouteDef {

@@ -279,34 +279,31 @@ export class Simulation {
     if (nextSeg.type !== 'switch') return;
 
     const sw = nextSeg as Switch;
+    
+    // 1. Try to get the lock on our own side first.
     if (sw.lockedBy && sw.lockedBy !== train.id) return;
 
+    const shouldDiverge = this.shouldTrainDiverge(train, sw);
     const linkedId = train.direction === 'east' ? sw.divergingNext : sw.divergingPrev;
     const linked = linkedId ? (this.graph.segments.get(linkedId) as Switch) : null;
 
-    if (linked && linked.lockedBy && linked.lockedBy !== train.id) {
-      // Must stay straight if linked side is busy
-      sw.state = 'straight';
-      linked.state = 'straight';
-      return;
-    }
-
-    // Determine path based on route
-    const shouldDiverge = this.shouldTrainDiverge(train, sw);
-    
     if (shouldDiverge && linked) {
-      sw.state = 'diverging';
-      linked.state = 'diverging';
-      // Reserve both early
+      // 2. To diverge, we MUST also get the lock on the linked switch.
+      if (linked.lockedBy && linked.lockedBy !== train.id) {
+        // Cannot diverge yet. We must stay Red (so we don't set sw.lockedBy yet).
+        return;
+      }
+      
+      // Success! Lock both and set diverging.
       sw.lockedBy = train.id;
       linked.lockedBy = train.id;
+      sw.state = 'diverging';
+      linked.state = 'diverging';
     } else {
+      // 3. To go straight, we only need the lock on our own side.
+      sw.lockedBy = train.id;
       sw.state = 'straight';
-      if (linked) {
-        linked.state = 'straight';
-        // Note: we don't clear lockedBy here if the train is actually *on* the switch.
-        // That is handled in enterSegment/updateTrain.
-      }
+      // Note: we don't force 'linked' to straight here, allowing parallel straight moves.
     }
   }
 
@@ -391,29 +388,41 @@ export class Simulation {
 
   private enterSegment(train: Train, segmentId: string, position: number): void {
     const prevSeg = this.graph.segments.get(train.segmentId);
-    if (prevSeg?.type === 'switch') {
+    const nextSeg = this.graph.segments.get(segmentId);
+
+    // If we're leaving a switch unit and entering something else, release locks.
+    if (prevSeg?.type === 'switch' && nextSeg?.type !== 'switch') {
       const sw = prevSeg as Switch;
       sw.lockedBy = null;
-      // Also unlock linked switch if we're done with the crossover
-      if (sw.state === 'diverging') {
-        const linkedId = train.direction === 'east' ? sw.divergingNext : sw.divergingPrev;
-        if (linkedId) {
-          const linked = this.graph.segments.get(linkedId) as Switch;
-          if (linked) linked.lockedBy = null;
-        }
+      
+      // Clear linked switches in both directions to be safe.
+      if (sw.divergingNext) {
+        const linked = this.graph.segments.get(sw.divergingNext) as Switch;
+        if (linked) linked.lockedBy = null;
+      }
+      if (sw.divergingPrev) {
+        const linked = this.graph.segments.get(sw.divergingPrev) as Switch;
+        if (linked) linked.lockedBy = null;
       }
     }
 
     train.segmentId = segmentId;
     train.position = Math.max(0.01, Math.min(0.99, position));
     
-    const nextSeg = this.graph.segments.get(segmentId);
     if (nextSeg) {
       train.trackGroupName = nextSeg.trackGroupName;
       train.trackDirection = nextSeg.trackDirection;
+      
       if (nextSeg.type === 'switch') {
         const sw = nextSeg as Switch;
         sw.lockedBy = train.id;
+        
+        // Also ensure linked switch is locked throughout.
+        const linkedId = train.direction === 'east' ? sw.divergingNext : sw.divergingPrev;
+        if (linkedId) {
+          const linked = this.graph.segments.get(linkedId) as Switch;
+          if (linked) linked.lockedBy = train.id;
+        }
       }
     }
   }
@@ -460,10 +469,22 @@ export class Simulation {
       // 2. Crossover Interlocking: if it's a switch, check its linked pair
       if (guardedSeg?.type === 'switch') {
         const sw = guardedSeg as Switch;
+
+        // 2a. Check linked switch occupancy (for crossovers)
         const linkedId = signal.facingDirection === 'east' ? sw.divergingNext : sw.divergingPrev;
         if (linkedId && occupiedSegments.has(linkedId)) {
           signal.state = 'red';
           continue;
+        }
+
+        // 2b. Lock Check: ifreserved by someone else, it's Red.
+        if (sw.lockedBy) {
+          // A signal is friendly to the lock only if the locking train is at the approach segment.
+          const lockingTrain = this.trains.find(t => t.id === sw.lockedBy);
+          if (lockingTrain && lockingTrain.segmentId !== signal.segmentBefore) {
+            signal.state = 'red';
+            continue;
+          }
         }
 
         const isEast = signal.facingDirection === 'east';

@@ -66,7 +66,7 @@
 - [ ] Create maps/08-terminal.map
 
 ## Phase 9: Double Crossover + Advanced Switches
-- [ ] Double crossover (X pattern)
+- [x] Double crossover (X pattern)
 - [ ] Branch switches
 - [ ] Complex signal interlocking
 - [ ] Create maps/09-advanced.map
