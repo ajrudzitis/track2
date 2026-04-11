@@ -83,7 +83,9 @@ The most basic element is a track. It represents a single pair of rails. This is
 
 The track SHOULD be illustrated with a thick line. 
 
+```
 ━━━━━━━━
+```
 
 Horizontally, straight pieces are preferable in the layout. Avoid adding other elements such as stations or switches
 (defined later) on non horizontally-straight segments. Diagonal tracks MAY be required to support more complex layouts in
@@ -107,8 +109,10 @@ Train IDs SHOULD be 4 characters. Longer IDs MAY be used if necessary to resolve
 
 A train on a track SHOULD look like this (except with an inverted background):
 
+```
 Westbound: ━━━◂5868━━━
 Eastbound: ━━━5868▸━━━
+```
 
 The direction arrow (◂ for westbound, ▸ for eastbound) MUST indicate the current direction of travel.
 
@@ -128,9 +132,11 @@ A single signal is visible from only one direction. Signals therefore MAY come i
 The following is a typical illustration of signals along a track. Note how the signal visible to eastbound trains is
 suffixed with a E and the signal for westbound trains W. 
 
+```
      23E  23W 
       X    X
 ━━━━━━━━━━━━━━━━
+```
 
 In the above illustration `X` represents a symbol indicating how the signal is set. 
 
@@ -160,9 +166,11 @@ as not to distract from more critical UX elements.
 
 
 An example segment
-      
+
+```
     S123
 ━━━━━━━━━━━━━━━━
+```
 
 If a segment is bounded on both sides by a station or a switch, no further boundary illustration is necessary. If two
 plain segments connect, a boundary marker MUST be illustrated between them. 
@@ -230,7 +238,7 @@ Standard rules about multiple trains in a segment still apply.
 
 An arrow at point (x) indicates how the switch is set. 
 
-
+```
      e     f
  a ━━━━x━━━━━━━━━━━━━━ b 
         ╲ 
@@ -238,12 +246,13 @@ An arrow at point (x) indicates how the switch is set.
           ╲ 
            ━━━━━━━━━━━ c
             g
+```
 
 Branches MAY traverse other track segments. Note in the following example trains can only travel from (h) to (i) and
 vice versa and cannot enter the path crossing over. However, to prevent collisions, signals at (h) and (j) guard trains
 from entering this segment if a switch is set to allow a train to travel from (a) to (c) or vice versa. 
 
-
+```
      e     f
  a ━━━━x━━━━━━━━━━━━━━ b 
         ╲ 
@@ -255,12 +264,13 @@ from entering this segment if a switch is set to allow a train to travel from (a
               ╲ 
                ━━━━━━━━━━━ c
                g
+```
 
 #### Cross over
 
 A switch may also allow trains to transfer between two parallel tracks. 
 
-
+```
      e     f
  a ━━━━x━━━━━━━━━━━━━━ b 
         ╲ 
@@ -268,7 +278,7 @@ A switch may also allow trains to transfer between two parallel tracks.
           ╲ 
  c ━━━━━━━━y━━━━━━━━━━━ d
      g        h
-
+```
 
 A train MAY go from (a) to (b), (a) to (d), (c) to (d), or vice versa for any of the pairs. A train MUST NOT travel from
 (a) to (c) or (b) to (d) or vice versa. 
@@ -286,6 +296,7 @@ As with a branch switch, a cross over MAY cross over other lines.
 
 A cross over may also be combined to allow cross over in multiple directions.
 
+```
      e       f
  a ━━━━x━━━z━━━━━━━━━━ b 
         ╲ /
@@ -293,6 +304,7 @@ A cross over may also be combined to allow cross over in multiple directions.
         / ╲ 
  c ━━━━w━━━━y━━━━━━━━━ d
      g        h
+```
 
 In this case, a train MAY additionally travel from (c) to (b) or vice versa. All signals MUST indicate how the adjacent
 switch is set. If either cross over is in use, a train using the cross over MUST hold the lock on the entire switch
@@ -303,7 +315,7 @@ cross over is set.
 
 The terminal segment of a line is expected to have special behavior. 
 
-
+```
      A 
  |━━━━━━━━━━━━━━━━━━x━━━z━━━━━━━━━ c
                      ╲ /
@@ -311,7 +323,7 @@ The terminal segment of a line is expected to have special behavior.
                      / ╲ 
  |━━━━━━━━━━━━━━━━━━w━━━y━━━━━━━━━ d
      B
-	 
+```
 	 
 A train approaching from (c) (assuming (c) is the inbound track), by default SHOULD cross over (passing through (z) and
 (w)) and terminate at platform (B). However, if (B) is occupied by a train on a layover, a train approaching from (c)
@@ -328,13 +340,14 @@ illustrated) until one of the platforms is clear and a path through the switch i
 
 A line MAY also be terminated by a single platform, in such a manner.
 
-      
+```      
                         z━━━━━━ c
                        /
 		              / 
                      / 
  |━━━━━━━━━━━━━━━━━━w━━━━━━━━━━━━ d
      B
+```
 
 In this case, a train approaching from (c) MUST utilize the switch to enter platform (B). If (B) is occupied, a signal
 MUST prevent the train from entering the switching segment ahead of the station. On beginning the next run, the train
