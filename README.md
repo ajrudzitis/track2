@@ -8,8 +8,9 @@ Track2 lets you define subway networks in `.map` files and watch trains run in a
 
 ```bash
 npm install
-npm run dev -- maps/06-routes.map
+npm run dev -- maps/07-switches.map
 ```
+Try `maps/07-switches.map` to see the new **switches** and **auto-routing** in action!
 
 ## Development
 
