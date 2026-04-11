@@ -1,5 +1,7 @@
 # Track2
 
+![Track2 Screenshot](assets/screenshot.png)
+
 A subway/metro simulation TUI built in TypeScript.
 
 Track2 lets you define subway networks in `.map` files and watch trains run in a control-room-style terminal display.
