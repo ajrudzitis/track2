@@ -321,11 +321,12 @@ export class Simulation {
     if (!targetId) return false;
 
     // A train should diverge if the target platform is NOT reachable on the current (straight) path,
-    // BUT it IS reachable by taking the diverging path.
-    const straightReachable = this.isSegmentReachable(sw.next, targetId, train.direction) ||
-                               this.isSegmentReachable(sw.prev, targetId, train.direction);
-    const divergingReachable = this.isSegmentReachable(sw.divergingNext, targetId, train.direction) ||
-                                 this.isSegmentReachable(sw.divergingPrev, targetId, train.direction);
+    // BUT it IS reachable by taking the diverging path. Only look ahead in the train's direction
+    // of travel — looking "backward" produces false positives on tight loops.
+    const straightAhead = train.direction === 'east' ? sw.next : sw.prev;
+    const divergingAhead = train.direction === 'east' ? sw.divergingNext : sw.divergingPrev;
+    const straightReachable = this.isSegmentReachable(straightAhead, targetId, train.direction);
+    const divergingReachable = this.isSegmentReachable(divergingAhead, targetId, train.direction);
 
     if (straightReachable) return false;
     if (divergingReachable) return true;
@@ -390,19 +391,16 @@ export class Simulation {
     const prevSeg = this.graph.segments.get(train.segmentId);
     const nextSeg = this.graph.segments.get(segmentId);
 
-    // If we're leaving a switch unit and entering something else, release locks.
+    // If we're leaving a switch unit and entering something else, release our locks.
+    // Only clear locks this train actually owns — never stomp another train's lock.
     if (prevSeg?.type === 'switch' && nextSeg?.type !== 'switch') {
       const sw = prevSeg as Switch;
-      sw.lockedBy = null;
-      
-      // Clear linked switches in both directions to be safe.
-      if (sw.divergingNext) {
-        const linked = this.graph.segments.get(sw.divergingNext) as Switch;
-        if (linked) linked.lockedBy = null;
-      }
-      if (sw.divergingPrev) {
-        const linked = this.graph.segments.get(sw.divergingPrev) as Switch;
-        if (linked) linked.lockedBy = null;
+      if (sw.lockedBy === train.id) sw.lockedBy = null;
+
+      for (const linkedId of [sw.divergingNext, sw.divergingPrev]) {
+        if (!linkedId) continue;
+        const linked = this.graph.segments.get(linkedId) as Switch | undefined;
+        if (linked && linked.lockedBy === train.id) linked.lockedBy = null;
       }
     }
 
@@ -416,12 +414,15 @@ export class Simulation {
       if (nextSeg.type === 'switch') {
         const sw = nextSeg as Switch;
         sw.lockedBy = train.id;
-        
-        // Also ensure linked switch is locked throughout.
-        const linkedId = train.direction === 'east' ? sw.divergingNext : sw.divergingPrev;
-        if (linkedId) {
-          const linked = this.graph.segments.get(linkedId) as Switch;
-          if (linked) linked.lockedBy = train.id;
+
+        // Only lock the linked switch when we are actually diverging — a
+        // straight-through must not block parallel traffic on the other track.
+        if (sw.state === 'diverging') {
+          const linkedId = train.direction === 'east' ? sw.divergingNext : sw.divergingPrev;
+          if (linkedId) {
+            const linked = this.graph.segments.get(linkedId) as Switch;
+            if (linked) linked.lockedBy = train.id;
+          }
         }
       }
     }

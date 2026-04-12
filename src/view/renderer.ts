@@ -173,7 +173,7 @@ export class Renderer {
   }
 
   private drawTrains(): void {
-    if (!this.layout) return;
+    if (!this.layout || !this.graph) return;
 
     for (const train of this.trains) {
       const sl = this.layout.segments.get(train.segmentId);
@@ -187,24 +187,20 @@ export class Renderer {
       let trainY: number = sl.y;
 
       if (seg.type === 'switch' && (seg as Switch).state === 'diverging') {
-        const sw = seg as Switch;
-        // Find the switch layout that involves this segment
-        const swl = this.layout.switches.find(s => 
-          (this.graph?.segments.get(train.segmentId)?.id === sw.id && 
-           (sw.divergingNext === this.graph?.segments.get(train.segmentId)?.id || // Is 'to' side
-            sw.divergingNext !== null)) // Is 'from' side
-        );
-
-        // More robust check: find the layout where this segment is either from or to
-        const layoutForThisSwitch = this.layout.switches.find(l => {
-          const fromSeg = Array.from(this.layout!.segments.entries()).find(([_, s]) => s.x + s.width/2 === l.fromX && s.y === l.fromY);
-          const toSeg = Array.from(this.layout!.segments.entries()).find(([_, s]) => s.x + s.width/2 === l.toX && s.y === l.toY);
-          return fromSeg?.[0] === train.segmentId || toSeg?.[0] === train.segmentId;
-        });
+        // Pick the diagonal entry for this train. Bidirectional (double) crossovers
+        // produce TWO layout entries that both touch the same switches — one per
+        // diagonal of the X. Disambiguate by which half of the segment the train
+        // occupies: positions below 0.5 always sit on the "from" side of whichever
+        // diagonal is actually being traversed, positions at/above 0.5 on the "to"
+        // side. This is direction-independent because the simulation always hands
+        // off to the partner switch exactly at position 0.5.
+        const layoutForThisSwitch = train.position < 0.5
+          ? this.layout.switches.find(l => l.fromId === train.segmentId)
+          : this.layout.switches.find(l => l.toId === train.segmentId);
 
         if (layoutForThisSwitch) {
           const l = layoutForThisSwitch;
-          const isFromSide = Array.from(this.layout.segments.entries()).find(([id, s]) => id === train.segmentId && s.x + s.width/2 === l.fromX && s.y === l.fromY) !== undefined;
+          const isFromSide = l.fromId === train.segmentId;
 
           // Always interpolate from 'from' to 'to'
           const startX = l.fromX;
