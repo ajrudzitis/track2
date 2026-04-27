@@ -287,12 +287,15 @@ export class Simulation {
     const linkedId = train.direction === 'east' ? sw.divergingNext : sw.divergingPrev;
     const linked = linkedId ? (this.graph.segments.get(linkedId) as Switch) : null;
 
+    // To do anything with a crossover, we need to check the linked switch too.
+    if (linked && linked.lockedBy && linked.lockedBy !== train.id) {
+        // Can't get lock on the linked switch, so we wait.
+        return;
+    }
+
     if (shouldDiverge && linked) {
       // 2. To diverge, we MUST also get the lock on the linked switch.
-      if (linked.lockedBy && linked.lockedBy !== train.id) {
-        // Cannot diverge yet. We must stay Red (so we don't set sw.lockedBy yet).
-        return;
-      }
+      // (The check above already confirmed it's available).
       
       // Success! Lock both and set diverging.
       sw.lockedBy = train.id;
@@ -300,10 +303,13 @@ export class Simulation {
       sw.state = 'diverging';
       linked.state = 'diverging';
     } else {
-      // 3. To go straight, we only need the lock on our own side.
+      // 3. To go straight, lock both switches and set them to straight.
       sw.lockedBy = train.id;
       sw.state = 'straight';
-      // Note: we don't force 'linked' to straight here, allowing parallel straight moves.
+      if (linked) {
+        linked.lockedBy = train.id;
+        linked.state = 'straight';
+      }
     }
   }
 
@@ -478,13 +484,17 @@ export class Simulation {
           continue;
         }
 
-        // 2b. Lock Check: ifreserved by someone else, it's Red.
+        // 2b. Lock Check: if reserved by someone else, it's Red.
         if (sw.lockedBy) {
           // A signal is friendly to the lock only if the locking train is at the approach segment.
           const lockingTrain = this.trains.find(t => t.id === sw.lockedBy);
           if (lockingTrain && lockingTrain.segmentId !== signal.segmentBefore) {
-            signal.state = 'red';
-            continue;
+            // This is locked by a train not at the approach. Normally this is red.
+            // EXCEPTION: A straight-through setting allows parallel moves.
+            if (sw.state !== 'straight') {
+              signal.state = 'red';
+              continue;
+            }
           }
         }
 
