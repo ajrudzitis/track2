@@ -1,0 +1,32 @@
+%% Track2 demo: terminal behavior + layover
+%%
+%% A 5-station line with a single bidirectional crossover at each terminus.
+%% Eastbound trains arriving on the east track at STH cross over to STH-W (the
+%% westbound platform — natural outbound track for the next run); westbound
+%% trains arriving on the west track at NTH cross over to NTH-E. If the
+%% preferred platform is occupied, the train continues straight to the same-
+%% track platform (a soft fallback). Termini hold trains for the configured
+%% layover (30s here) instead of the regular 5s station dwell.
+
+config
+  speed: 1.0
+  dwell: 5s
+  layover: 30s
+end
+
+trackgroup MainLine
+  west: [NTH-W] <NW1> ---W1--- [GRN-W] ---W2--- [MID-W] ---W3--- [PRK-W] <SW1> [STH-W]
+  east: [NTH-E] <NE1> ---E1--- [GRN-E] ---E2--- [MID-E] ---E3--- [PRK-E] <SE1> [STH-E]
+end
+
+switches
+  NW1 <-> NE1
+  SW1 <-> SE1
+end
+
+route Main
+  trackgroup: MainLine
+  color: yellow
+  platforms: NTH, GRN, MID, PRK, STH
+  trains: 4
+end

@@ -11,7 +11,7 @@ export interface MapFile {
 export interface MapConfig {
   speed: number;
   dwell: number;     // seconds
-  layover: number;   // seconds
+  layover?: number;  // seconds; falls back to dwell when unset
 }
 
 export interface TrackGroupDef {
@@ -38,4 +38,5 @@ export interface RouteDef {
   trainCount: number;
   trainIds: string[];
   trackGroupName?: string;
+  layover?: number;  // seconds at terminus; falls back to config.layover
 }

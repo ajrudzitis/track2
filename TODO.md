@@ -61,9 +61,12 @@
 - [x] Create maps/07-switches.map
 
 ## Phase 8: Terminal Behavior
-- [ ] End-of-line crossover logic
-- [ ] Layover timer (60s default, configurable)
-- [ ] Create maps/08-terminal.map
+- [x] End-of-line crossover logic (terminus targets the natural outbound-track platform; falls back to same-track if occupied)
+- [x] Layover timer (configurable per route, falls back to config layover, then dwell)
+- [x] Create maps/08-terminal.map
+
+## Fast follow
+- [ ] Horizontal scrolling for maps wider than the terminal (the screen buffer currently clips silently — wide demos like 08-terminal can fall off the right edge on narrower terminals)
 
 ## Phase 9: Double Crossover + Advanced Switches
 - [x] Double crossover (X pattern)

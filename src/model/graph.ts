@@ -99,6 +99,7 @@ export class TrackGraph {
         trackGroupName,
         trainIds: routeDef.trainIds,
         trainCount: routeDef.trainCount,
+        layover: routeDef.layover ?? mapFile.config.layover ?? mapFile.config.dwell,
       };
       this.routes.push(route);
     }
@@ -135,6 +136,64 @@ export class TrackGraph {
   findPlatformInGroup(abbr: string, trackGroupName: string): string | undefined {
     return this.findPlatformOnTrack(abbr, trackGroupName, 'west') ||
            this.findPlatformOnTrack(abbr, trackGroupName, 'east');
+  }
+
+  /**
+   * All platforms with this abbreviation in the given trackgroup. Platforms that share
+   * an abbreviation are treated as the platforms of one station.
+   */
+  getStationPlatformsInGroup(abbr: string, trackGroupName: string): string[] {
+    const ids: string[] = [];
+    const west = this.findPlatformOnTrack(abbr, trackGroupName, 'west');
+    if (west) ids.push(west);
+    const east = this.findPlatformOnTrack(abbr, trackGroupName, 'east');
+    if (east) ids.push(east);
+    return ids;
+  }
+
+  /**
+   * Pick the best platform for a train approaching a station.
+   *
+   * - At a terminus the train will reverse before departing, so we want it to land on
+   *   the track that's natural for the *reversed* direction (an eastbound inbound train
+   *   aims for the west-track platform so its next outbound run as a westbound train
+   *   departs straight). If that platform is occupied by another train on layover, the
+   *   inbound train falls back to the same-track terminus platform — DESIGN.md spells
+   *   this out, and the next outbound leg will cross over via the same switch pair to
+   *   reach the natural outbound track.
+   * - At an intermediate station, target the track natural for the train's *direction
+   *   of travel*, not its current track. Normally those agree, but if the train fell
+   *   back to the wrong-track terminus, this is what tells the autorouter to cross over
+   *   at the next switch instead of running head-on into oncoming traffic.
+   *
+   * Returns the chosen platform's segment id, or undefined if no platform exists.
+   */
+  pickTargetPlatform(
+    abbr: string,
+    trackGroupName: string,
+    trainDirection: 'west' | 'east',
+    trainTrackDirection: 'west' | 'east',
+    isTerminus: boolean,
+    occupied: ReadonlySet<string>,
+  ): string | undefined {
+    const platforms = this.getStationPlatformsInGroup(abbr, trackGroupName);
+    if (platforms.length === 0) return undefined;
+
+    if (isTerminus) {
+      const reversed = trainDirection === 'east' ? 'west' : 'east';
+      const preferred = platforms.find(id => this.segments.get(id)?.trackDirection === reversed);
+      const fallback = platforms.find(id => this.segments.get(id)?.trackDirection !== reversed);
+      if (preferred && !occupied.has(preferred)) return preferred;
+      if (fallback && !occupied.has(fallback)) return fallback;
+      return preferred ?? fallback;
+    }
+
+    // Aim for the track natural for the direction of travel — keeps eastbounds on the
+    // east track and westbounds on the west track, and re-aligns a fallback train
+    // back onto its natural track at the next opportunity.
+    const naturalTrack = platforms.find(id => this.segments.get(id)?.trackDirection === trainDirection);
+    const opposite = platforms.find(id => this.segments.get(id)?.trackDirection !== trainDirection);
+    return naturalTrack ?? opposite;
   }
 
   /**

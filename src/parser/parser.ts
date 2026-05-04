@@ -7,7 +7,6 @@ import type { MapFile, MapConfig, TrackGroupDef, TrackElement, RouteDef, SwitchD
 const DEFAULT_CONFIG: MapConfig = {
   speed: 1.0,
   dwell: 15,
-  layover: 60,
 };
 
 export function parseMapFile(source: string): MapFile {
@@ -146,6 +145,7 @@ function parseRouteBlock(name: string, lines: string[], start: number): [RouteDe
     else if (key === 'trains') route.trainCount = parseInt(value, 10);
     else if (key === 'ids') route.trainIds = value.split(',').map(s => s.trim());
     else if (key === 'trackgroup') route.trackGroupName = value;
+    else if (key === 'layover') route.layover = parseTime(value);
 
     i++;
   }

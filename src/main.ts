@@ -8,13 +8,24 @@ import { parseMapFile } from './parser/parser.js';
 import { TrackGraph } from './model/graph.js';
 import { computeLayout } from './view/layout.js';
 import { Simulation } from './model/simulation.js';
+import { runDebug } from './debug.js';
 
 const args = process.argv.slice(2);
 
 if (args.length === 0) {
   console.log("Track2 — Subway Simulation");
-  console.log("Usage: track2 <mapfile.map>");
+  console.log("Usage: track2 [--debug [ticks]] <mapfile.map>");
   process.exit(0);
+}
+
+const debugIdx = args.indexOf('--debug');
+const debugMode = debugIdx >= 0;
+let debugTicks = 1000;
+if (debugMode) {
+  args.splice(debugIdx, 1);
+  if (args.length > 0 && /^\d+$/.test(args[0])) {
+    debugTicks = parseInt(args.shift()!, 10);
+  }
 }
 
 const mapFile = args[0];
@@ -23,11 +34,6 @@ const mapFile = args[0];
 const source = readFileSync(mapFile, 'utf-8');
 const mapData = parseMapFile(source);
 const graph = TrackGraph.fromMapFile(mapData);
-const layout = computeLayout(graph);
-
-const terminal = new Terminal();
-const renderer = new Renderer(terminal.screen);
-renderer.setData(graph, layout);
 
 // Set up simulation
 const sim = new Simulation(graph);
@@ -37,6 +43,16 @@ if (graph.routes.length > 0) {
 } else {
   sim.spawnDefaultTrains('cyan');
 }
+
+if (debugMode) {
+  runDebug(sim, graph, debugTicks);
+  process.exit(0);
+}
+
+const layout = computeLayout(graph);
+const terminal = new Terminal();
+const renderer = new Renderer(terminal.screen);
+renderer.setData(graph, layout);
 
 function draw(): void {
   renderer.setTrains(sim.trains);

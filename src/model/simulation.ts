@@ -101,23 +101,27 @@ export class Simulation {
   private spawnTrainsOnTrack(route: Route, trackDirection: 'west' | 'east', count: number, idOffset: number): void {
     if (count === 0) return;
 
-    const extent = this.graph.getRouteExtent(route, trackDirection);
-    if (extent.length === 0) return;
+    // Spawn at route platforms only — trains start the cycle at a station, not mid-segment.
+    // West-track trains run westward (right-to-left), so we reverse the platform order so
+    // they spawn from the east end and have the full line to travel before the terminus.
+    const platformIds = route.platformAbbrs
+      .map(abbr => this.graph.findPlatformOnTrack(abbr, route.trackGroupName, trackDirection))
+      .filter((id): id is string => id !== undefined);
+    if (platformIds.length === 0) return;
 
+    const orderedPlatforms = trackDirection === 'east' ? platformIds : [...platformIds].reverse();
     const occupiedSegments = new Set(this.trains.map(t => t.segmentId));
 
     for (let i = 0; i < count; i++) {
-      // Distribute trains evenly across ALL segments in the route extent, avoiding occupied ones
-      let segIdx = Math.floor(i * extent.length / count);
-      let segmentId = extent[segIdx];
+      let platIdx = Math.floor(i * orderedPlatforms.length / count);
+      let segmentId = orderedPlatforms[platIdx];
 
-      // If occupied, find nearest unoccupied segment
       if (occupiedSegments.has(segmentId)) {
-        for (let offset = 1; offset < extent.length; offset++) {
-          const fwd = segIdx + offset;
-          const bwd = segIdx - offset;
-          if (fwd < extent.length && !occupiedSegments.has(extent[fwd])) { segmentId = extent[fwd]; break; }
-          if (bwd >= 0 && !occupiedSegments.has(extent[bwd])) { segmentId = extent[bwd]; break; }
+        for (let offset = 1; offset < orderedPlatforms.length; offset++) {
+          const fwd = platIdx + offset;
+          const bwd = platIdx - offset;
+          if (fwd < orderedPlatforms.length && !occupiedSegments.has(orderedPlatforms[fwd])) { segmentId = orderedPlatforms[fwd]; break; }
+          if (bwd >= 0 && !occupiedSegments.has(orderedPlatforms[bwd])) { segmentId = orderedPlatforms[bwd]; break; }
         }
       }
       occupiedSegments.add(segmentId);
@@ -126,39 +130,14 @@ export class Simulation {
         ? route.trainIds[idOffset + i]
         : this.generateId();
 
-      // Find initial route progress
-      let lastPlatformIndex = 0;
-      const seg = this.graph.segments.get(segmentId);
-      if (seg?.type === 'platform') {
-        const idx = route.platformAbbrs.indexOf((seg as Platform).stationAbbr);
-        if (idx >= 0) lastPlatformIndex = idx;
-      }
-
-      // Determine initial direction based on route
-      let direction: 'west' | 'east';
-      const nextIdx = (lastPlatformIndex + 1) % route.platformAbbrs.length;
-      const nextAbbr = route.platformAbbrs[nextIdx];
-      const targetId = this.graph.findPlatformInGroup(nextAbbr, route.trackGroupName);
-      
-      if (targetId) {
-        // Simple reachability check to see which way to go
-        const tg = this.graph.trackGroups.find(t => t.name === route.trackGroupName);
-        const segmentIds = trackDirection === 'west' ? tg!.westSegments : tg!.eastSegments;
-        const currentIdx = segmentIds.indexOf(segmentId);
-        
-        // If target is on the same track, head toward it.
-        // If not, head toward the switch that leads to the other track.
-        // For now, simpler: if currentIdx is low, go east; if high, go west.
-        direction = (currentIdx < segmentIds.length / 2) ? 'east' : 'west';
-      } else {
-        direction = (trackDirection === 'west') ? 'west' : 'east';
-      }
+      const seg = this.graph.segments.get(segmentId) as Platform;
+      const lastPlatformIndex = route.platformAbbrs.indexOf(seg.stationAbbr);
 
       this.trains.push({
         id,
         segmentId,
         position: 0.5,
-        direction,
+        direction: trackDirection,
         state: 'running',
         dwellRemaining: 0,
         color: route.color,
@@ -271,6 +250,11 @@ export class Simulation {
   }
 
   private autoRouteTrain(train: Train): void {
+    // A dwelling train is parked — it shouldn't pre-reserve switches for its
+    // outbound run, because that blocks inbound traffic from crossing over to
+    // the platform it's about to vacate.
+    if (train.state === 'dwelling') return;
+
     const seg = this.graph.segments.get(train.segmentId)!;
     const nextId = train.direction === 'east' ? seg.next : seg.prev;
 
@@ -287,29 +271,19 @@ export class Simulation {
     const linkedId = train.direction === 'east' ? sw.divergingNext : sw.divergingPrev;
     const linked = linkedId ? (this.graph.segments.get(linkedId) as Switch) : null;
 
-    // To do anything with a crossover, we need to check the linked switch too.
-    if (linked && linked.lockedBy && linked.lockedBy !== train.id) {
-        // Can't get lock on the linked switch, so we wait.
-        return;
-    }
-
     if (shouldDiverge && linked) {
-      // 2. To diverge, we MUST also get the lock on the linked switch.
-      // (The check above already confirmed it's available).
-      
-      // Success! Lock both and set diverging.
+      // Diverging needs the linked partner's lock too — we'll physically
+      // traverse it. If it's reserved by someone else we have to wait.
+      if (linked.lockedBy && linked.lockedBy !== train.id) return;
       sw.lockedBy = train.id;
       linked.lockedBy = train.id;
       sw.state = 'diverging';
       linked.state = 'diverging';
     } else {
-      // 3. To go straight, lock both switches and set them to straight.
+      // Straight-through only locks our own switch. The linked partner is on
+      // the other track and may be used independently by a parallel train.
       sw.lockedBy = train.id;
       sw.state = 'straight';
-      if (linked) {
-        linked.lockedBy = train.id;
-        linked.state = 'straight';
-      }
     }
   }
 
@@ -318,12 +292,7 @@ export class Simulation {
     const route = this.graph.routes.find(r => r.name === train.routeId);
     if (!route) return false;
 
-    // Find next platform in route
-    const currentPlatIdx = train.lastPlatformIndex ?? 0;
-    const nextPlatAbbr = route.platformAbbrs[(currentPlatIdx + 1) % route.platformAbbrs.length];
-    
-    // Search both tracks of the track group to find the destination platform
-    const targetId = this.graph.findPlatformInGroup(nextPlatAbbr, route.trackGroupName);
+    const targetId = this.findRouteTargetPlatform(train, route);
     if (!targetId) return false;
 
     // A train should diverge if the target platform is NOT reachable on the current (straight) path,
@@ -338,6 +307,43 @@ export class Simulation {
     if (divergingReachable) return true;
 
     return false;
+  }
+
+  /**
+   * The platform segment a route-bound train is currently aiming for. The route platform
+   * list is bidirectional: an east-bound train walks idx+1; a west-bound train walks idx-1.
+   * Cyclic next would tell a west-bound train at GRN to target MID (east of it), which
+   * misleads switch interlocking — by the time the train passes NW1 the crossover logic
+   * needs to know the real next stop is NTH so it can divert to the east-track platform.
+   */
+  private findRouteTargetPlatform(train: Train, route: Route): string | undefined {
+    const idx = train.lastPlatformIndex ?? 0;
+    const N = route.platformAbbrs.length;
+    if (N <= 1) return undefined;
+
+    let nextIdx: number;
+    if (train.direction === 'east') {
+      nextIdx = idx >= N - 1 ? N - 2 : idx + 1;
+    } else {
+      nextIdx = idx <= 0 ? 1 : idx - 1;
+    }
+
+    const nextAbbr = route.platformAbbrs[nextIdx];
+    const isTerminus = nextIdx === 0 || nextIdx === N - 1;
+
+    const occupied = new Set<string>();
+    for (const t of this.trains) {
+      if (t !== train) occupied.add(t.segmentId);
+    }
+
+    return this.graph.pickTargetPlatform(
+      nextAbbr,
+      route.trackGroupName,
+      train.direction,
+      train.trackDirection,
+      isTerminus,
+      occupied,
+    );
   }
 
   private isSegmentReachable(startId: string | null, targetId: string, direction: 'west' | 'east'): boolean {
@@ -550,21 +556,33 @@ export class Simulation {
       const plat = seg as Platform;
       train.position = 0.5;
 
+      let isRouteTerminus = false;
       if (train.routeId) {
         const route = this.graph.routes.find(r => r.name === train.routeId);
         if (route) {
           const idx = route.platformAbbrs.indexOf(plat.stationAbbr);
-          if (idx >= 0) train.lastPlatformIndex = idx;
+          if (idx >= 0) {
+            train.lastPlatformIndex = idx;
+            isRouteTerminus = idx === 0 || idx === route.platformAbbrs.length - 1;
+          }
         }
       }
 
       this.checkTerminusReversal(train);
       train.state = 'dwelling';
-      train.dwellRemaining = plat.dwellTime;
+      train.dwellRemaining = isRouteTerminus
+        ? this.terminusLayoverFor(train) ?? plat.dwellTime
+        : plat.dwellTime;
       return true;
     }
 
     return false;
+  }
+
+  private terminusLayoverFor(train: Train): number | null {
+    if (!train.routeId) return null;
+    const route = this.graph.routes.find(r => r.name === train.routeId);
+    return route?.layover ?? null;
   }
 
   private checkTerminusReversal(train: Train): void {

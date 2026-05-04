@@ -30,6 +30,21 @@ npm run dev -- maps/demo.map    # Dev mode (tsx)
 npm run build && npm start      # Production mode
 ```
 
+## Debugging
+
+For non-visual debugging (deadlocks, routing bugs, signal/lock state), run the
+simulation in headless mode — no TUI, just periodic state dumps to stdout:
+
+```bash
+npm run dev -- --debug maps/08-terminal.map         # 1000 ticks default
+npm run dev -- --debug 3000 maps/08-terminal.map    # custom tick count
+```
+
+Each snapshot prints, for every train: segment, position, direction, state,
+route, and last-visited platform index — followed by every switch's `state` and
+`lockedBy`. Use this in preference to writing a one-off harness when chasing
+simulation bugs.
+
 ## Key Conventions
 
 - Track character: `━` (U+2501, BOX DRAWINGS HEAVY HORIZONTAL)

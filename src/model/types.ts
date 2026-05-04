@@ -56,6 +56,7 @@ export interface Route {
   trackGroupName: string;    // which trackgroup this route operates on
   trainIds: string[];        // custom train IDs (may be empty)
   trainCount: number;        // total number of trains to spawn
+  layover: number;           // seconds dwell at first/last platform (terminus)
 }
 
 export const ANSI_COLORS: Record<string, number> = {
