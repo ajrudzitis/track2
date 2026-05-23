@@ -82,8 +82,14 @@ export class Renderer {
         this.screen.putString(labelX, sl.labelY, label, LABEL_STYLE);
       }
 
-      // Draw boundary tick mark at the end of segment (if there's a next segment)
+    }
+
+    for (const [segId, sl] of this.layout.segments) {
+      const seg = this.graph.segments.get(segId)!;
       if (seg.next) {
+        const nextSeg = this.graph.segments.get(seg.next);
+        if (seg.type !== 'plain' || nextSeg?.type !== 'plain') continue;
+
         const boundaryX = sl.x + sl.width;
         this.screen.put(boundaryX, sl.y, BOUNDARY_CHAR, TRACK_STYLE);
         this.screen.put(boundaryX, sl.labelY, BOUNDARY_LABEL_CHAR, LABEL_STYLE);
