@@ -42,3 +42,5 @@ Phase 8 complete — terminal behavior. Platforms that share an abbreviation (e.
 Route endpoints are currently required to be physical track termini. Mid-line turnbacks need explicit turnback or crossover support before they can be modeled safely.
 
 Plain segment joins render visible boundary tick marks; stations and switches serve as their own boundaries.
+
+Map loading now fails fast on malformed syntax, unknown keys, unresolved switch links, missing route platforms, and unsupported route endpoints.

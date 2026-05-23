@@ -80,4 +80,4 @@
 - [ ] Manual switch override
 - [ ] Scrolling for large maps
 - [ ] Status bar
-- [ ] .map file error reporting
+- [x] Basic .map file error reporting

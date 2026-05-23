@@ -71,9 +71,8 @@ export class TrackGraph {
 
   private linkSwitches(switchDefs: SwitchDef[]): void {
     for (const def of switchDefs) {
-      const from = this.segments.get(def.from) as Switch;
-      const to = this.segments.get(def.to) as Switch;
-      if (!from || !to) continue;
+      const from = this.requireSwitch(def.from, 'switch link source');
+      const to = this.requireSwitch(def.to, 'switch link target');
 
       // Link them as a diagonal connection.
       // from -> to represents an Eastbound crossover path.
@@ -90,20 +89,55 @@ export class TrackGraph {
 
   private resolveRoutes(mapFile: MapFile): void {
     for (const routeDef of mapFile.routes) {
+      if (routeDef.platforms.length < 2) {
+        throw new Error(`Route "${routeDef.name}" must include at least two platforms`);
+      }
+
       const trackGroupName = routeDef.trackGroupName ?? this.inferTrackGroup(routeDef.platforms[0]);
-      if (!trackGroupName) continue;
+      if (!trackGroupName) {
+        throw new Error(`Route "${routeDef.name}" could not infer a trackgroup`);
+      }
+      if (!this.trackGroups.some(t => t.name === trackGroupName)) {
+        throw new Error(`Route "${routeDef.name}" references unknown trackgroup "${trackGroupName}"`);
+      }
+      if (!(routeDef.color in ANSI_COLORS)) {
+        throw new Error(`Route "${routeDef.name}" references unknown color "${routeDef.color}"`);
+      }
 
       const route: Route = {
         name: routeDef.name,
-        color: ANSI_COLORS[routeDef.color] ?? 46,
+        color: ANSI_COLORS[routeDef.color],
         platformAbbrs: routeDef.platforms,
         trackGroupName,
         trainIds: routeDef.trainIds,
         trainCount: routeDef.trainCount,
         layover: routeDef.layover ?? mapFile.config.layover ?? DEFAULT_LAYOVER_SECONDS,
       };
+      this.validateRoutePlatforms(route);
       this.validateRouteTurnbacks(route);
       this.routes.push(route);
+    }
+  }
+
+  private requireSwitch(id: string, context: string): Switch {
+    const seg = this.segments.get(id);
+    if (!seg) {
+      throw new Error(`Unknown switch "${id}" referenced as ${context}`);
+    }
+    if (seg.type !== 'switch') {
+      throw new Error(`Segment "${id}" referenced as ${context} is a ${seg.type}, not a switch`);
+    }
+    return seg as Switch;
+  }
+
+  private validateRoutePlatforms(route: Route): void {
+    for (const abbr of route.platformAbbrs) {
+      if (this.getStationPlatformsInGroup(abbr, route.trackGroupName).length === 0) {
+        throw new Error(
+          `Route "${route.name}" references unknown platform abbreviation "${abbr}" ` +
+          `in trackgroup "${route.trackGroupName}"`
+        );
+      }
     }
   }
 

@@ -9,6 +9,13 @@ const DEFAULT_CONFIG: MapConfig = {
   dwell: 15,
 };
 
+export class MapParseError extends Error {
+  constructor(message: string, lineNumber?: number) {
+    super(lineNumber ? `Line ${lineNumber}: ${message}` : message);
+    this.name = 'MapParseError';
+  }
+}
+
 export function parseMapFile(source: string): MapFile {
   const lines = source.split('\n');
   const result: MapFile = {
@@ -46,7 +53,7 @@ export function parseMapFile(source: string): MapFile {
       result.switches = sws;
       i = next;
     } else {
-      i++;
+      throw new MapParseError(`Unexpected top-level line "${line}"`, i + 1);
     }
   }
 
@@ -63,19 +70,17 @@ function parseSwitchesBlock(lines: string[], start: number): [SwitchDef[], numbe
 
     // Parse sw1 <-> sw2 or sw1 -> sw2
     if (line.includes('<->')) {
-      const parts = line.split('<->').map(s => s.trim());
-      if (parts.length === 2) {
-        switches.push({ from: parts[0], to: parts[1], bidirectional: true });
-      }
+      const [from, to] = parseSwitchLink(line, '<->', i + 1);
+      switches.push({ from, to, bidirectional: true });
     } else if (line.includes('->')) {
-      const parts = line.split('->').map(s => s.trim());
-      if (parts.length === 2) {
-        switches.push({ from: parts[0], to: parts[1] });
-      }
+      const [from, to] = parseSwitchLink(line, '->', i + 1);
+      switches.push({ from, to });
+    } else {
+      throw new MapParseError(`Invalid switch link "${line}"`, i + 1);
     }
     i++;
   }
-  return [switches, i];
+  throw new MapParseError('Unterminated switches block');
 }
 
 function parseConfigBlock(lines: string[], start: number): [Partial<MapConfig>, number] {
@@ -84,15 +89,17 @@ function parseConfigBlock(lines: string[], start: number): [Partial<MapConfig>, 
   while (i < lines.length) {
     const line = lines[i].trim();
     if (line === 'end') return [config, i + 1];
+    if (line === '' || line.startsWith('%%')) { i++; continue; }
 
-    const [key, value] = splitKV(line);
-    if (key === 'speed') config.speed = parseFloat(value);
-    else if (key === 'dwell') config.dwell = parseTime(value);
-    else if (key === 'layover') config.layover = parseTime(value);
+    const [key, value] = splitKV(line, i + 1);
+    if (key === 'speed') config.speed = parseNumber(value, 'speed', i + 1);
+    else if (key === 'dwell') config.dwell = parseTime(value, 'dwell', i + 1);
+    else if (key === 'layover') config.layover = parseTime(value, 'layover', i + 1);
+    else throw new MapParseError(`Unknown config key "${key}"`, i + 1);
 
     i++;
   }
-  return [config, i];
+  throw new MapParseError('Unterminated config block');
 }
 
 function parseTrackGroupBlock(name: string, lines: string[], start: number): [TrackGroupDef, number] {
@@ -101,66 +108,125 @@ function parseTrackGroupBlock(name: string, lines: string[], start: number): [Tr
   while (i < lines.length) {
     const line = lines[i].trim();
     if (line === 'end') return [group, i + 1];
+    if (line === '' || line.startsWith('%%')) { i++; continue; }
 
     if (line.startsWith('west:') || line.startsWith('north:')) {
       const prefix = line.startsWith('west:') ? 'west:' : 'north:';
-      group.westTrack = parseTrackLine(line.slice(prefix.length).trim());
+      group.westTrack = parseTrackLine(line.slice(prefix.length).trim(), i + 1);
     } else if (line.startsWith('east:') || line.startsWith('south:')) {
       const prefix = line.startsWith('east:') ? 'east:' : 'south:';
-      group.eastTrack = parseTrackLine(line.slice(prefix.length).trim());
+      group.eastTrack = parseTrackLine(line.slice(prefix.length).trim(), i + 1);
+    } else {
+      throw new MapParseError(`Unknown trackgroup line "${line}"`, i + 1);
     }
 
     i++;
   }
-  return [group, i];
+  throw new MapParseError(`Unterminated trackgroup "${name}" block`);
 }
 
-function parseTrackLine(line: string): TrackElement[] {
+function parseTrackLine(line: string, lineNumber: number): TrackElement[] {
   const elements: TrackElement[] = [];
-  // Match [PLATFORM_ID], ---segment_id---, and <switch_id> patterns
-  const tokens = line.match(/\[[^\]]+\]|---[^-]+---|<[^>]+>/g) || [];
-  for (const token of tokens) {
-    const t = token.trim();
-    if (t.startsWith('[') && t.endsWith(']')) {
-      elements.push({ type: 'platform', id: t.slice(1, -1) });
-    } else if (t.startsWith('---') && t.endsWith('---')) {
-      elements.push({ type: 'segment', id: t.slice(3, -3) });
-    } else if (t.startsWith('<') && t.endsWith('>')) {
-      elements.push({ type: 'switch', id: t.slice(1, -1) });
+  const tokenRegex = /\s*(\[[^\]]+\]|---[^-]+---|<[^>]+>)/gy;
+  let index = 0;
+
+  while (index < line.length) {
+    tokenRegex.lastIndex = index;
+    const match = tokenRegex.exec(line);
+    if (!match) {
+      if (line.slice(index).trim() === '') break;
+      throw new MapParseError(`Invalid track token near "${line.slice(index).trim()}"`, lineNumber);
     }
+
+    const t = match[1].trim();
+    if (t.startsWith('[') && t.endsWith(']')) {
+      elements.push({ type: 'platform', id: parseId(t.slice(1, -1), 'platform', lineNumber) });
+    } else if (t.startsWith('---') && t.endsWith('---')) {
+      elements.push({ type: 'segment', id: parseId(t.slice(3, -3), 'segment', lineNumber) });
+    } else if (t.startsWith('<') && t.endsWith('>')) {
+      elements.push({ type: 'switch', id: parseId(t.slice(1, -1), 'switch', lineNumber) });
+    }
+    index = tokenRegex.lastIndex;
   }
+
+  if (elements.length === 0) {
+    throw new MapParseError('Track line must contain at least one element', lineNumber);
+  }
+
   return elements;
 }
 
 function parseRouteBlock(name: string, lines: string[], start: number): [RouteDef, number] {
-  const route: RouteDef = { name, color: '#ffffff', platforms: [], trainCount: 0, trainIds: [] };
+  const route: RouteDef = { name, color: 'cyan', platforms: [], trainCount: 0, trainIds: [] };
   let i = start;
   while (i < lines.length) {
     const line = lines[i].trim();
     if (line === 'end') return [route, i + 1];
+    if (line === '' || line.startsWith('%%')) { i++; continue; }
 
-    const [key, value] = splitKV(line);
+    const [key, value] = splitKV(line, i + 1);
     if (key === 'color') route.color = value;
-    else if (key === 'platforms') route.platforms = value.split(',').map(s => s.trim());
-    else if (key === 'trains') route.trainCount = parseInt(value, 10);
-    else if (key === 'ids') route.trainIds = value.split(',').map(s => s.trim());
+    else if (key === 'platforms') route.platforms = parseList(value, 'platforms', i + 1);
+    else if (key === 'trains') route.trainCount = parseTrainCount(value, i + 1);
+    else if (key === 'ids') route.trainIds = value === '' ? [] : parseList(value, 'ids', i + 1);
     else if (key === 'trackgroup') route.trackGroupName = value;
-    else if (key === 'layover') route.layover = parseTime(value);
+    else if (key === 'layover') route.layover = parseTime(value, 'layover', i + 1);
+    else throw new MapParseError(`Unknown route key "${key}"`, i + 1);
 
     i++;
   }
-  return [route, i];
+  throw new MapParseError(`Unterminated route "${name}" block`);
 }
 
-function splitKV(line: string): [string, string] {
+function splitKV(line: string, lineNumber: number): [string, string] {
   const idx = line.indexOf(':');
-  if (idx < 0) return [line, ''];
+  if (idx < 0) throw new MapParseError(`Expected key/value line with ":" in "${line}"`, lineNumber);
   return [line.slice(0, idx).trim(), line.slice(idx + 1).trim()];
 }
 
-function parseTime(value: string): number {
+function parseTime(value: string, fieldName: string, lineNumber: number): number {
   value = value.trim();
-  if (value.endsWith('s')) return parseFloat(value.slice(0, -1));
-  if (value.endsWith('m')) return parseFloat(value.slice(0, -1)) * 60;
-  return parseFloat(value);
+  const multiplier = value.endsWith('m') ? 60 : 1;
+  const numberText = value.endsWith('s') || value.endsWith('m') ? value.slice(0, -1) : value;
+  return parseNumber(numberText, fieldName, lineNumber) * multiplier;
+}
+
+function parseNumber(value: string, fieldName: string, lineNumber: number): number {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) {
+    throw new MapParseError(`Invalid ${fieldName} value "${value}"`, lineNumber);
+  }
+  return num;
+}
+
+function parseTrainCount(value: string, lineNumber: number): number {
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 0) {
+    throw new MapParseError(`Invalid trains value "${value}"`, lineNumber);
+  }
+  return count;
+}
+
+function parseList(value: string, fieldName: string, lineNumber: number): string[] {
+  const items = value.split(',').map(s => s.trim()).filter(Boolean);
+  if (items.length === 0) {
+    throw new MapParseError(`Field "${fieldName}" must include at least one value`, lineNumber);
+  }
+  return items;
+}
+
+function parseId(value: string, idKind: string, lineNumber: number): string {
+  const id = value.trim();
+  if (id === '') {
+    throw new MapParseError(`Empty ${idKind} id`, lineNumber);
+  }
+  return id;
+}
+
+function parseSwitchLink(line: string, operator: string, lineNumber: number): [string, string] {
+  const parts = line.split(operator).map(s => s.trim());
+  if (parts.length !== 2 || parts[0] === '' || parts[1] === '') {
+    throw new MapParseError(`Invalid switch link "${line}"`, lineNumber);
+  }
+  return [parts[0], parts[1]];
 }
