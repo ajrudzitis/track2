@@ -8,6 +8,7 @@ import { ANSI_COLORS } from './types.js';
 import { type Signal, generateSignals } from './signal.js';
 
 const DEFAULT_SEGMENT_WIDTH = 16;
+const DEFAULT_LAYOVER_SECONDS = 60;
 
 export class TrackGraph {
   segments: Map<string, Segment> = new Map();
@@ -99,7 +100,7 @@ export class TrackGraph {
         trackGroupName,
         trainIds: routeDef.trainIds,
         trainCount: routeDef.trainCount,
-        layover: routeDef.layover ?? mapFile.config.layover ?? mapFile.config.dwell,
+        layover: routeDef.layover ?? mapFile.config.layover ?? DEFAULT_LAYOVER_SECONDS,
       };
       this.validateRouteTurnbacks(route);
       this.routes.push(route);

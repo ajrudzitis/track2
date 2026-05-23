@@ -63,7 +63,7 @@
 
 ## Phase 8: Terminal Behavior
 - [x] End-of-line crossover logic (terminus targets the natural outbound-track platform; falls back to same-track if occupied)
-- [x] Layover timer (configurable per route, falls back to config layover, then dwell)
+- [x] Layover timer (configurable per route, falls back to config layover, then 60s)
 - [x] Create maps/08-terminal.map
 
 ## Fast follow
