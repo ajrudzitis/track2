@@ -1,5 +1,5 @@
 %% Track2 demo: routes + multi-train operation
-%% Seattle 1 Line with two routes sharing the same trackgroup
+%% Seattle 1 Line with one bidirectional route and one train per physical track.
 
 config
   dwell: 5s
@@ -10,18 +10,10 @@ trackgroup Line1
   south: [CAP-S] ---s5--- [WES-S] ---s6--- [SYM-S] ---s7--- [PIO-S] ---s8--- [IDC-S]
 end
 
-%% Green route: full line, 4 trains
+%% Green route: full line, 2 trains
 route Green
   trackgroup: Line1
   color: green
   platforms: CAP, WES, SYM, PIO, IDC
-  trains: 4
-end
-
-%% Blue route: partial line (first 3 stations), 2 trains
-route Blue
-  trackgroup: Line1
-  color: blue
-  platforms: CAP, WES, SYM
   trains: 2
 end

@@ -101,8 +101,45 @@ export class TrackGraph {
         trainCount: routeDef.trainCount,
         layover: routeDef.layover ?? mapFile.config.layover ?? mapFile.config.dwell,
       };
+      this.validateRouteTurnbacks(route);
       this.routes.push(route);
     }
+  }
+
+  private validateRouteTurnbacks(route: Route): void {
+    if (route.platformAbbrs.length < 2) {
+      throw new Error(`Route "${route.name}" must include at least two platforms`);
+    }
+
+    const endpoints = [
+      route.platformAbbrs[0],
+      route.platformAbbrs[route.platformAbbrs.length - 1],
+    ];
+
+    for (const abbr of endpoints) {
+      if (!this.isPhysicalTerminusStation(abbr, route.trackGroupName)) {
+        throw new Error(
+          `Route "${route.name}" endpoint "${abbr}" is not a supported turnback. ` +
+          'Route endpoints must be at the physical end of a track until explicit turnback tracks are supported.'
+        );
+      }
+    }
+  }
+
+  private isPhysicalTerminusStation(abbr: string, trackGroupName: string): boolean {
+    const platformIds = this.getStationPlatformsInGroup(abbr, trackGroupName);
+    return platformIds.length > 0 && platformIds.every(id => this.isPhysicalEndSegment(id));
+  }
+
+  private isPhysicalEndSegment(segmentId: string): boolean {
+    const seg = this.segments.get(segmentId);
+    if (!seg) return false;
+
+    const tg = this.trackGroups.find(t => t.name === seg.trackGroupName);
+    if (!tg) return false;
+
+    const segmentIds = seg.trackDirection === 'west' ? tg.westSegments : tg.eastSegments;
+    return segmentIds[0] === segmentId || segmentIds[segmentIds.length - 1] === segmentId;
   }
 
   private inferTrackGroup(platformAbbr: string): string | undefined {

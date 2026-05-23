@@ -38,3 +38,5 @@ maps/                  # Example .map files
 ## Status
 
 Phase 8 complete — terminal behavior. Platforms that share an abbreviation (e.g. `[STH-W]` and `[STH-E]`) are treated as platforms of one station, and trains arriving at a route's first or last station now select the platform on the track natural to the *reversed* direction so they depart straight on the next run. If that platform is occupied, the train falls back to the same-track platform (a deliberate misroute that the next terminus crossover will correct). Layover time (configurable per route via `layover:`, otherwise from `config.layover`, otherwise equal to `dwell`) replaces the normal station dwell at termini.
+
+Route endpoints are currently required to be physical track termini. Mid-line turnbacks need explicit turnback or crossover support before they can be modeled safely.

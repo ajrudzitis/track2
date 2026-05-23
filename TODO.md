@@ -50,6 +50,7 @@
 - [x] Route model (ordered platform list, cyclic)
 - [x] Multiple trains per route
 - [x] Direction reversal at endpoints
+- [x] Reject unsupported mid-line route turnbacks
 - [x] Speed control (keyboard)
 - [x] Create maps/06-routes.map
 
