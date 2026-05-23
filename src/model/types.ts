@@ -53,7 +53,7 @@ export interface Route {
   name: string;
   color: number;             // resolved ANSI background color code
   platformAbbrs: string[];   // station abbreviations from the route def
-  trackGroupName: string;    // which trackgroup this route operates on
+  trackGroupName?: string;   // optional scope; omitted routes may span trackgroups
   trainIds: string[];        // custom train IDs (may be empty)
   trainCount: number;        // total number of trains to spawn
   layover: number;           // seconds dwell at first/last platform (terminus)

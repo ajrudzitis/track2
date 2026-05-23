@@ -72,9 +72,10 @@
 
 ## Phase 9: Double Crossover + Advanced Switches
 - [x] Double crossover (X pattern)
-- [ ] Branch switches
+- [x] Branch switches
+- [x] Routes spanning separate track groups with unique station abbreviations
 - [ ] Complex signal interlocking
-- [ ] Create maps/09-advanced.map
+- [x] Create maps/09-advanced.map
 
 ## Phase 10: Polish + Special Features
 - [ ] Arrival board

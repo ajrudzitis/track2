@@ -141,7 +141,7 @@ export class Simulation {
         state: 'running',
         dwellRemaining: 0,
         color: route.color,
-        trackGroupName: route.trackGroupName,
+        trackGroupName: seg.trackGroupName,
         trackDirection,
         routeId: route.name,
         lastPlatformIndex,
@@ -347,15 +347,29 @@ export class Simulation {
   }
 
   private isSegmentReachable(startId: string | null, targetId: string, direction: 'west' | 'east'): boolean {
-    let curr = startId;
+    if (!startId) return false;
+    const queue: string[] = [startId];
     const visited = new Set<string>();
-    while (curr && !visited.has(curr)) {
+
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      if (visited.has(curr)) continue;
       if (curr === targetId) return true;
       visited.add(curr);
+
       const seg = this.graph.segments.get(curr);
-      if (!seg) break;
-      curr = direction === 'east' ? seg.next : seg.prev;
+      if (!seg) continue;
+
+      const straight = direction === 'east' ? seg.next : seg.prev;
+      if (straight && !visited.has(straight)) queue.push(straight);
+
+      if (seg.type === 'switch') {
+        const sw = seg as Switch;
+        const diverging = direction === 'east' ? sw.divergingNext : sw.divergingPrev;
+        if (diverging && !visited.has(diverging)) queue.push(diverging);
+      }
     }
+
     return false;
   }
 

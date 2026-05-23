@@ -53,6 +53,7 @@ export interface LayoutResult {
 
 const PADDING_LEFT = 2;
 const TRACK_GROUP_START_Y = 2;
+const MIN_FORWARD_SWITCH_COLUMNS = 8;
 
 export function computeLayout(graph: TrackGraph): LayoutResult {
   const segments = new Map<string, SegmentLayout>();
@@ -125,6 +126,8 @@ export function computeLayout(graph: TrackGraph): LayoutResult {
 
     currentY = eastSignalLabelY + 3; // gap before next track group
   }
+
+  applyBranchTrackGroupOffsets(graph, segments);
 
   // Populate switch connections
   const switches: SwitchLayout[] = [];
@@ -206,4 +209,56 @@ export function computeLayout(graph: TrackGraph): LayoutResult {
   contentWidth += PADDING_LEFT;
 
   return { segments, signals, trackGroups, switches, contentWidth };
+}
+
+function applyBranchTrackGroupOffsets(graph: TrackGraph, segments: Map<string, SegmentLayout>): void {
+  const offsets = new Map<string, number>();
+  for (const tg of graph.trackGroups) {
+    offsets.set(tg.name, 0);
+  }
+
+  let changed = true;
+  let passes = 0;
+  const maxPasses = Math.max(1, graph.trackGroups.length * graph.trackGroups.length);
+
+  while (changed && passes < maxPasses) {
+    changed = false;
+    passes++;
+
+    for (const seg of graph.segments.values()) {
+      if (seg.type !== 'switch') continue;
+
+      const sw = seg as Switch;
+      if (!sw.divergingNext) continue;
+
+      const target = graph.segments.get(sw.divergingNext);
+      if (!target || target.type !== 'switch') continue;
+      if (target.trackGroupName === sw.trackGroupName) continue;
+
+      // Cross-group bidirectional links would impose opposing "forward" constraints.
+      // Directed branch links are the case this offset pass is designed to align.
+      if ((target as Switch).divergingNext === sw.id) continue;
+
+      const fromLayout = segments.get(sw.id);
+      const toLayout = segments.get(sw.divergingNext);
+      if (!fromLayout || !toLayout) continue;
+
+      const fromOffset = offsets.get(sw.trackGroupName) ?? 0;
+      const toOffset = offsets.get(target.trackGroupName) ?? 0;
+      const fromX = fromLayout.x + fromOffset + Math.floor(fromLayout.width * 0.25);
+      const toX = toLayout.x + toOffset + Math.floor(toLayout.width * 0.75);
+      const needed = fromX + MIN_FORWARD_SWITCH_COLUMNS - toX;
+
+      if (needed > 0) {
+        offsets.set(target.trackGroupName, toOffset + needed);
+        changed = true;
+      }
+    }
+  }
+
+  for (const sl of segments.values()) {
+    const seg = graph.segments.get(sl.segmentId);
+    if (!seg) continue;
+    sl.x += offsets.get(seg.trackGroupName) ?? 0;
+  }
 }

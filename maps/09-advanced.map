@@ -1,0 +1,36 @@
+%% Track2 demo: branch switches across separate track groups
+%%
+%% The Branch route runs between AAA on the Main track group and CCC on the
+%% Branch track group. Eastbound trains depart AAA-E, take BR-4 -> BR-3 onto
+%% the branch, then use the CCC crossover to land at CCC-W for the return trip.
+%% Westbound trains depart CCC-W, traverse the physical BR-1/BR-2 branch link
+%% onto Main west, then use the AAA crossover to land at AAA-E.
+
+config
+  speed: 1.5
+  dwell: 5s
+  layover: 12s
+end
+
+trackgroup Main
+  west: [AAA-W] <AX-W> ---MW1--- <BR-2> ---MW2--- [BBB-W]
+  east: [AAA-E] <AX-E> ---ME1--- <BR-4> ---ME2--- [BBB-E]
+end
+
+trackgroup Branch
+  west: <BR-1> ---BW1--- <CX-W> [CCC-W]
+  east: <BR-3> ---BE1--- <CX-E> [CCC-E]
+end
+
+switches
+  AX-W <-> AX-E
+  BR-2 -> BR-1
+  BR-4 -> BR-3
+  CX-W <-> CX-E
+end
+
+route Branch
+  color: magenta
+  platforms: AAA, CCC
+  trains: 2
+end

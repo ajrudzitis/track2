@@ -93,12 +93,8 @@ export class TrackGraph {
         throw new Error(`Route "${routeDef.name}" must include at least two platforms`);
       }
 
-      const trackGroupName = routeDef.trackGroupName ?? this.inferTrackGroup(routeDef.platforms[0]);
-      if (!trackGroupName) {
-        throw new Error(`Route "${routeDef.name}" could not infer a trackgroup`);
-      }
-      if (!this.trackGroups.some(t => t.name === trackGroupName)) {
-        throw new Error(`Route "${routeDef.name}" references unknown trackgroup "${trackGroupName}"`);
+      if (routeDef.trackGroupName && !this.trackGroups.some(t => t.name === routeDef.trackGroupName)) {
+        throw new Error(`Route "${routeDef.name}" references unknown trackgroup "${routeDef.trackGroupName}"`);
       }
       if (!(routeDef.color in ANSI_COLORS)) {
         throw new Error(`Route "${routeDef.name}" references unknown color "${routeDef.color}"`);
@@ -108,7 +104,7 @@ export class TrackGraph {
         name: routeDef.name,
         color: ANSI_COLORS[routeDef.color],
         platformAbbrs: routeDef.platforms,
-        trackGroupName,
+        trackGroupName: routeDef.trackGroupName,
         trainIds: routeDef.trainIds,
         trainCount: routeDef.trainCount,
         layover: routeDef.layover ?? mapFile.config.layover ?? DEFAULT_LAYOVER_SECONDS,
@@ -132,10 +128,17 @@ export class TrackGraph {
 
   private validateRoutePlatforms(route: Route): void {
     for (const abbr of route.platformAbbrs) {
-      if (this.getStationPlatformsInGroup(abbr, route.trackGroupName).length === 0) {
+      const platforms = this.getStationPlatforms(abbr, route.trackGroupName);
+      if (platforms.length === 0) {
+        const suffix = route.trackGroupName ? ` in trackgroup "${route.trackGroupName}"` : '';
         throw new Error(
-          `Route "${route.name}" references unknown platform abbreviation "${abbr}" ` +
-          `in trackgroup "${route.trackGroupName}"`
+          `Route "${route.name}" references unknown platform abbreviation "${abbr}"${suffix}`
+        );
+      }
+      if (!route.trackGroupName && this.trackGroupsForStation(abbr).length > 1) {
+        throw new Error(
+          `Route "${route.name}" references ambiguous platform abbreviation "${abbr}". ` +
+          'Add trackgroup: to constrain the route, or use unique station abbreviations across trackgroups.'
         );
       }
     }
@@ -161,8 +164,8 @@ export class TrackGraph {
     }
   }
 
-  private isPhysicalTerminusStation(abbr: string, trackGroupName: string): boolean {
-    const platformIds = this.getStationPlatformsInGroup(abbr, trackGroupName);
+  private isPhysicalTerminusStation(abbr: string, trackGroupName?: string): boolean {
+    const platformIds = this.getStationPlatforms(abbr, trackGroupName);
     return platformIds.length > 0 && platformIds.every(id => this.isPhysicalEndSegment(id));
   }
 
@@ -177,26 +180,18 @@ export class TrackGraph {
     return segmentIds[0] === segmentId || segmentIds[segmentIds.length - 1] === segmentId;
   }
 
-  private inferTrackGroup(platformAbbr: string): string | undefined {
-    for (const seg of this.segments.values()) {
-      if (seg.type === 'platform' && (seg as Platform).stationAbbr === platformAbbr) {
-        return seg.trackGroupName;
-      }
-    }
-    return undefined;
-  }
-
   /**
    * Find the segment ID for a platform with the given abbreviation on a specific track.
    */
-  findPlatformOnTrack(abbr: string, trackGroupName: string, trackDirection: 'west' | 'east'): string | undefined {
-    const tg = this.trackGroups.find(t => t.name === trackGroupName);
-    if (!tg) return undefined;
-    const segmentIds = trackDirection === 'west' ? tg.westSegments : tg.eastSegments;
-    for (const id of segmentIds) {
-      const seg = this.segments.get(id);
-      if (seg?.type === 'platform' && (seg as Platform).stationAbbr === abbr) {
-        return id;
+  findPlatformOnTrack(abbr: string, trackGroupName: string | undefined, trackDirection: 'west' | 'east'): string | undefined {
+    for (const tg of this.trackGroups) {
+      if (trackGroupName && tg.name !== trackGroupName) continue;
+      const segmentIds = trackDirection === 'west' ? tg.westSegments : tg.eastSegments;
+      for (const id of segmentIds) {
+        const seg = this.segments.get(id);
+        if (seg?.type === 'platform' && (seg as Platform).stationAbbr === abbr) {
+          return id;
+        }
       }
     }
     return undefined;
@@ -215,12 +210,29 @@ export class TrackGraph {
    * an abbreviation are treated as the platforms of one station.
    */
   getStationPlatformsInGroup(abbr: string, trackGroupName: string): string[] {
+    return this.getStationPlatforms(abbr, trackGroupName);
+  }
+
+  getStationPlatforms(abbr: string, trackGroupName?: string): string[] {
     const ids: string[] = [];
-    const west = this.findPlatformOnTrack(abbr, trackGroupName, 'west');
-    if (west) ids.push(west);
-    const east = this.findPlatformOnTrack(abbr, trackGroupName, 'east');
-    if (east) ids.push(east);
+    for (const tg of this.trackGroups) {
+      if (trackGroupName && tg.name !== trackGroupName) continue;
+      const west = this.findPlatformOnTrack(abbr, tg.name, 'west');
+      if (west) ids.push(west);
+      const east = this.findPlatformOnTrack(abbr, tg.name, 'east');
+      if (east) ids.push(east);
+    }
     return ids;
+  }
+
+  private trackGroupsForStation(abbr: string): string[] {
+    const names = new Set<string>();
+    for (const seg of this.segments.values()) {
+      if (seg.type === 'platform' && (seg as Platform).stationAbbr === abbr) {
+        names.add(seg.trackGroupName);
+      }
+    }
+    return [...names];
   }
 
   /**
@@ -242,13 +254,13 @@ export class TrackGraph {
    */
   pickTargetPlatform(
     abbr: string,
-    trackGroupName: string,
+    trackGroupName: string | undefined,
     trainDirection: 'west' | 'east',
     trainTrackDirection: 'west' | 'east',
     isTerminus: boolean,
     occupied: ReadonlySet<string>,
   ): string | undefined {
-    const platforms = this.getStationPlatformsInGroup(abbr, trackGroupName);
+    const platforms = this.getStationPlatforms(abbr, trackGroupName);
     if (platforms.length === 0) return undefined;
 
     if (isTerminus) {
@@ -273,6 +285,8 @@ export class TrackGraph {
    * (from first route platform to last route platform, inclusive of all segments between).
    */
   getRouteExtent(route: Route, trackDirection: 'west' | 'east'): string[] {
+    if (!route.trackGroupName) return [];
+
     const tg = this.trackGroups.find(t => t.name === route.trackGroupName);
     if (!tg) return [];
     const segmentIds = trackDirection === 'west' ? tg.westSegments : tg.eastSegments;
