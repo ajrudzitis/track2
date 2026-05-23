@@ -53,6 +53,7 @@ const layout = computeLayout(graph);
 const terminal = new Terminal();
 const renderer = new Renderer(terminal.screen);
 renderer.setData(graph, layout);
+const SCROLL_COLUMNS = 8;
 
 function draw(): void {
   renderer.setTrains(sim.trains);
@@ -75,6 +76,18 @@ const input = new InputHandler((key: string) => {
     sim.increaseSpeed();
   } else if (key === '-' || key === '_') {
     sim.decreaseSpeed();
+  } else if (key === 'left') {
+    renderer.scrollBy(-SCROLL_COLUMNS);
+    draw();
+  } else if (key === 'right') {
+    renderer.scrollBy(SCROLL_COLUMNS);
+    draw();
+  } else if (key === 'home') {
+    renderer.scrollToStart();
+    draw();
+  } else if (key === 'end') {
+    renderer.scrollToEnd();
+    draw();
   }
 });
 

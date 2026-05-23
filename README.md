@@ -14,6 +14,8 @@ npm run dev -- maps/08-terminal.map
 ```
 Try `maps/08-terminal.map` to see the new **terminal behavior** — trains arriving at a terminus pick the platform on the outbound-direction track (so they depart straight on the next run), and hold there for the configured `layover` rather than the regular station dwell.
 
+For a wide-map demo, run `npm run dev -- maps/08b-scrolling.map`. Use Left/Right to pan horizontally and Home/End to jump to either edge.
+
 ## Development
 
 ```bash
@@ -37,7 +39,9 @@ maps/                  # Example .map files
 
 ## Status
 
-Phase 8 complete — terminal behavior. Platforms that share an abbreviation (e.g. `[STH-W]` and `[STH-E]`) are treated as platforms of one station, and trains arriving at a route's first or last station now select the platform on the track natural to the *reversed* direction so they depart straight on the next run. If that platform is occupied, the train falls back to the same-track platform (a deliberate misroute that the next terminus crossover will correct). Layover time (configurable per route via `layover:`, otherwise from `config.layover`, otherwise 60 seconds) replaces the normal station dwell at termini.
+Phase 8 plus the horizontal-scrolling fast follow are complete. Platforms that share an abbreviation (e.g. `[STH-W]` and `[STH-E]`) are treated as platforms of one station, and trains arriving at a route's first or last station now select the platform on the track natural to the *reversed* direction so they depart straight on the next run. If that platform is occupied, the train falls back to the same-track platform (a deliberate misroute that the next terminus crossover will correct). Layover time (configurable per route via `layover:`, otherwise from `config.layover`, otherwise 60 seconds) replaces the normal station dwell at termini.
+
+Maps wider than the terminal now scroll horizontally instead of clipping silently. The status bar stays fixed and shows the visible column range whenever scrolling is available.
 
 Route endpoints are currently required to be physical track termini. Mid-line turnbacks need explicit turnback or crossover support before they can be modeled safely.
 

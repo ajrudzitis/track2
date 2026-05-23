@@ -48,6 +48,7 @@ export interface LayoutResult {
   signals: SignalLayout[];
   trackGroups: TrackGroupLayout[];
   switches: SwitchLayout[];
+  contentWidth: number;
 }
 
 const PADDING_LEFT = 2;
@@ -189,5 +190,20 @@ export function computeLayout(graph: TrackGraph): LayoutResult {
     });
   }
 
-  return { segments, signals, trackGroups, switches };
+  let contentWidth = PADDING_LEFT;
+  for (const sl of segments.values()) {
+    contentWidth = Math.max(contentWidth, sl.x + sl.width);
+  }
+  for (const sl of signals) {
+    const labelStart = sl.signal.facingDirection === 'east'
+      ? sl.x - sl.signal.id.length + 1
+      : sl.x;
+    contentWidth = Math.max(contentWidth, sl.x + 1, labelStart + sl.signal.id.length);
+  }
+  for (const sw of switches) {
+    contentWidth = Math.max(contentWidth, sw.fromX + 1, sw.toX + 1);
+  }
+  contentWidth += PADDING_LEFT;
+
+  return { segments, signals, trackGroups, switches, contentWidth };
 }

@@ -1,0 +1,21 @@
+%% Track2 demo: horizontal scrolling
+%%
+%% This line is intentionally much wider than a typical 80-column terminal.
+%% Use Left/Right to pan across the map and Home/End to jump to either edge.
+
+config
+  speed: 1.5
+  dwell: 4s
+end
+
+trackgroup LongLine
+  west: [A01-W] ---W01--- [A02-W] ---W02--- [A03-W] ---W03--- [A04-W] ---W04--- [A05-W] ---W05--- [A06-W] ---W06--- [A07-W] ---W07--- [A08-W] ---W08--- [A09-W] ---W09--- [A10-W] ---W10--- [A11-W] ---W11--- [A12-W]
+  east: [A01-E] ---E01--- [A02-E] ---E02--- [A03-E] ---E03--- [A04-E] ---E04--- [A05-E] ---E05--- [A06-E] ---E06--- [A07-E] ---E07--- [A08-E] ---E08--- [A09-E] ---E09--- [A10-E] ---E10--- [A11-E] ---E11--- [A12-E]
+end
+
+route Silver
+  trackgroup: LongLine
+  color: cyan
+  platforms: A01, A02, A03, A04, A05, A06, A07, A08, A09, A10, A11, A12
+  trains: 4
+end

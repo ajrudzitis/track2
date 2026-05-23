@@ -30,6 +30,7 @@ export class Renderer {
   private graph: TrackGraph | null = null;
   private trains: Train[] = [];
   private speedDisplay: string = '1.0x';
+  private scrollX: number = 0;
 
   constructor(screen: ScreenBuffer) {
     this.screen = screen;
@@ -48,7 +49,20 @@ export class Renderer {
     this.speedDisplay = s;
   }
 
+  scrollBy(columns: number): void {
+    this.setScrollX(this.scrollX + columns);
+  }
+
+  scrollToStart(): void {
+    this.setScrollX(0);
+  }
+
+  scrollToEnd(): void {
+    this.setScrollX(this.maxScrollX());
+  }
+
   render(): void {
+    this.clampScrollX();
     this.screen.clear();
     if (this.layout && this.graph) {
       this.drawSegments();
@@ -59,6 +73,33 @@ export class Renderer {
     this.drawStatusBar();
   }
 
+  private setScrollX(x: number): void {
+    this.scrollX = Math.max(0, Math.min(Math.floor(x), this.maxScrollX()));
+  }
+
+  private clampScrollX(): void {
+    this.setScrollX(this.scrollX);
+  }
+
+  private maxScrollX(): number {
+    const contentWidth = this.layout?.contentWidth ?? this.screen.width;
+    return Math.max(0, contentWidth - this.screen.width);
+  }
+
+  private putWorld(x: number, y: number, char: string, style: CellStyle): void {
+    this.screen.put(x - this.scrollX, y, char, style);
+  }
+
+  private putWorldString(x: number, y: number, str: string, style: CellStyle): void {
+    for (let i = 0; i < str.length; i++) {
+      this.putWorld(x + i, y, str[i], style);
+    }
+  }
+
+  private getWorldCharAt(x: number, y: number): string | undefined {
+    return this.screen.getCharAt(x - this.scrollX, y);
+  }
+
   private drawSegments(): void {
     if (!this.layout || !this.graph) return;
 
@@ -67,7 +108,7 @@ export class Renderer {
 
       // Draw track line
       for (let i = 0; i < sl.width; i++) {
-        this.screen.put(sl.x + i, sl.y, TRACK_CHAR, TRACK_STYLE);
+        this.putWorld(sl.x + i, sl.y, TRACK_CHAR, TRACK_STYLE);
       }
 
       // Draw label centered above
@@ -75,11 +116,11 @@ export class Renderer {
         const plat = seg as Platform;
         const label = ` ${plat.id} `;
         const labelX = sl.x + Math.floor((sl.width - label.length) / 2);
-        this.screen.putString(labelX, sl.labelY, label, PLATFORM_LABEL_STYLE);
+        this.putWorldString(labelX, sl.labelY, label, PLATFORM_LABEL_STYLE);
       } else {
         const label = seg.id;
         const labelX = sl.x + Math.floor((sl.width - label.length) / 2);
-        this.screen.putString(labelX, sl.labelY, label, LABEL_STYLE);
+        this.putWorldString(labelX, sl.labelY, label, LABEL_STYLE);
       }
 
     }
@@ -91,8 +132,8 @@ export class Renderer {
         if (seg.type !== 'plain' || nextSeg?.type !== 'plain') continue;
 
         const boundaryX = sl.x + sl.width;
-        this.screen.put(boundaryX, sl.y, BOUNDARY_CHAR, TRACK_STYLE);
-        this.screen.put(boundaryX, sl.labelY, BOUNDARY_LABEL_CHAR, LABEL_STYLE);
+        this.putWorld(boundaryX, sl.y, BOUNDARY_CHAR, TRACK_STYLE);
+        this.putWorld(boundaryX, sl.labelY, BOUNDARY_LABEL_CHAR, LABEL_STYLE);
       }
     }
   }
@@ -135,14 +176,14 @@ export class Renderer {
         if (dx === 0) char = '┃';
         
         // Detect intersection for double crossover (overlaid switches)
-        const existing = this.screen.getCharAt(x, y);
+        const existing = this.getWorldCharAt(x, y);
         if ((char === '╲' && existing === '╱') || (char === '╱' && existing === '╲') || existing === '╳') {
           char = '╳';
           // The center X always stays default color per user request
           style = TRACK_STYLE;
         }
         
-        this.screen.put(x, y, char, style);
+        this.putWorld(x, y, char, style);
       }
     }
   }
@@ -153,7 +194,7 @@ export class Renderer {
     for (const sl of this.layout.signals) {
       const style = sl.signal.state === 'red' ? SIGNAL_RED : SIGNAL_GREEN;
       const symbol = this.getSignalSymbol(sl.signal);
-      this.screen.put(sl.x, sl.symbolY, symbol, style);
+      this.putWorld(sl.x, sl.symbolY, symbol, style);
 
       // Position labels to avoid overlap:
       // East-facing label ends at signal x, west-facing label starts at signal x
@@ -161,7 +202,7 @@ export class Renderer {
       const labelX = sl.signal.facingDirection === 'east'
         ? sl.x - label.length + 1
         : sl.x;
-      this.screen.putString(labelX, sl.labelY, label, SIGNAL_LABEL_STYLE);
+      this.putWorldString(labelX, sl.labelY, label, SIGNAL_LABEL_STYLE);
     }
   }
 
@@ -236,7 +277,7 @@ export class Renderer {
       }
 
       for (let i = 0; i < trainText.length; i++) {
-        this.screen.put(trainX + i, trainY, trainText[i], trainStyle);
+        this.putWorld(trainX + i, trainY, trainText[i], trainStyle);
       }
     }
   }
@@ -244,7 +285,15 @@ export class Renderer {
   private drawStatusBar(): void {
     const y = this.screen.height - 1;
     const trainCount = this.trains.length;
-    const status = `  Track2 v0.1  │  Trains: ${trainCount}  │  +/-: speed  │  q: quit  │  ${this.speedDisplay}`;
+    const parts = [` Track2 v0.1`, `${trainCount} trains`, '+/- speed'];
+    const contentWidth = this.layout?.contentWidth ?? this.screen.width;
+    if (this.maxScrollX() > 0) {
+      const visibleStart = this.scrollX + 1;
+      const visibleEnd = Math.min(this.scrollX + this.screen.width, contentWidth);
+      parts.push('←/→ scroll', 'Home/End', `${visibleStart}-${visibleEnd}/${contentWidth}`);
+    }
+    parts.push('q quit', this.speedDisplay);
+    const status = parts.join('  │  ');
     this.screen.putString(0, y, status, STATUS_STYLE);
   }
 }

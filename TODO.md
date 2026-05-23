@@ -32,7 +32,7 @@
 - [x] Render signals as colored ● below track with labels
 - [x] Signal pairs straddle boundary tick marks
 - [x] Create maps/04-signals.map
-- [ ] Basic interlocking logic (deferred to Phase 5 when trains exist)
+- [x] Basic interlocking logic (implemented with train occupancy in Phase 5)
 
 ## Phase 5: Trains (Movement)
 - [x] Train model (ID, position, direction, speed, state)
@@ -43,7 +43,7 @@
 - [x] Render trains as inverted text on track
 - [x] Direction reversal at track ends (no switches yet)
 - [x] Speed control (+/- keys, 0.25x–4.0x)
-- [x] Signal interlocking (red when segment occupied)
+- [x] Signal interlocking (red when segment occupied; completes basic interlocking deferred from Phase 4)
 - [x] Create maps/05-trains.map
 
 ## Phase 6: Routes + Multi-Train Operation
@@ -67,7 +67,8 @@
 - [x] Create maps/08-terminal.map
 
 ## Fast follow
-- [ ] Horizontal scrolling for maps wider than the terminal (the screen buffer currently clips silently — wide demos like 08-terminal can fall off the right edge on narrower terminals)
+- [x] Horizontal scrolling for maps wider than the terminal (Left/Right pan, Home/End jump)
+- [x] Create maps/08b-scrolling.map
 
 ## Phase 9: Double Crossover + Advanced Switches
 - [x] Double crossover (X pattern)
