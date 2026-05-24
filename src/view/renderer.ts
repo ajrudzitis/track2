@@ -12,6 +12,10 @@ const TRACK_CHAR = '━';
 const BOUNDARY_CHAR = '┿';
 const BOUNDARY_LABEL_CHAR = '┃';
 const SIGNAL_CHAR = '●';
+
+// Cells that a switch diagonal is allowed to overwrite. Anything else (i.e.
+// a label glyph) is preserved by skipping the diagonal character at that cell.
+const DIAGONAL_PASSABLE = new Set([' ', TRACK_CHAR, BOUNDARY_CHAR, BOUNDARY_LABEL_CHAR, '╲', '╱', '╳']);
 const TRACK_STYLE: CellStyle = { fg: 37, bg: 40, bold: true, inverse: false };
 const ACTIVE_TRACK_STYLE: CellStyle = { fg: 32, bg: 40, bold: true, inverse: false };
 const LABEL_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
@@ -183,8 +187,11 @@ export class Renderer {
           char = '╳';
           // The center X always stays default color per user request
           style = TRACK_STYLE;
+        } else if (existing !== undefined && !DIAGONAL_PASSABLE.has(existing)) {
+          // A label glyph occupies this cell; leave it readable.
+          continue;
         }
-        
+
         this.putWorld(x, y, char, style);
       }
     }
