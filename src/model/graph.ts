@@ -64,9 +64,29 @@ export class TrackGraph {
     }
 
     graph.linkSwitches(mapFile.switches);
+    graph.collapseJunctions();
     graph.resolveRoutes(mapFile);
 
     return graph;
+  }
+
+  /**
+   * A switch with exactly one path on each side. It can be locked and traversed
+   * but offers no routing choice, so the layout collapses it to a 1-column anchor
+   * where an incoming cross-group diagonal lands flush with the next regular segment.
+   */
+  static isJunction(sw: Switch): boolean {
+    const westPaths = (sw.prev ? 1 : 0) + (sw.divergingPrev ? 1 : 0);
+    const eastPaths = (sw.next ? 1 : 0) + (sw.divergingNext ? 1 : 0);
+    return westPaths === 1 && eastPaths === 1;
+  }
+
+  private collapseJunctions(): void {
+    for (const seg of this.segments.values()) {
+      if (seg.type === 'switch' && TrackGraph.isJunction(seg as Switch)) {
+        seg.displayWidth = 1;
+      }
+    }
   }
 
   private linkSwitches(switchDefs: SwitchDef[]): void {

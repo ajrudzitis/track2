@@ -4,7 +4,7 @@
 
 import { type ScreenBuffer, type CellStyle } from './terminal.js';
 import type { LayoutResult, SegmentLayout } from './layout.js';
-import type { TrackGraph } from '../model/graph.js';
+import { TrackGraph } from '../model/graph.js';
 import type { Platform, Train, Switch } from '../model/types.js';
 import type { Signal } from '../model/signal.js';
 
@@ -117,6 +117,8 @@ export class Renderer {
         const label = ` ${plat.id} `;
         const labelX = sl.x + Math.floor((sl.width - label.length) / 2);
         this.putWorldString(labelX, sl.labelY, label, PLATFORM_LABEL_STYLE);
+      } else if (seg.type === 'switch' && TrackGraph.isJunction(seg as Switch)) {
+        // Junction: the diagonal is the visual; no label, no Y.
       } else {
         const label = seg.id;
         const labelX = sl.x + Math.floor((sl.width - label.length) / 2);
