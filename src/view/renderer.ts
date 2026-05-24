@@ -249,10 +249,15 @@ export class Renderer {
         // occupies: positions below 0.5 always sit on the "from" side of whichever
         // diagonal is actually being traversed, positions at/above 0.5 on the "to"
         // side. This is direction-independent because the simulation always hands
-        // off to the partner switch exactly at position 0.5.
+        // off to the partner switch exactly at position 0.5. For a unidirectional
+        // cross-group diagonal only one variant exists, so fall back to whichever
+        // side we find — otherwise the frame at the handoff snaps to the
+        // segment's regular anchor before the next frame interpolates back.
+        const fromSideLayout = this.layout.switches.find(l => l.fromId === train.segmentId);
+        const toSideLayout = this.layout.switches.find(l => l.toId === train.segmentId);
         const layoutForThisSwitch = train.position < 0.5
-          ? this.layout.switches.find(l => l.fromId === train.segmentId)
-          : this.layout.switches.find(l => l.toId === train.segmentId);
+          ? (fromSideLayout ?? toSideLayout)
+          : (toSideLayout ?? fromSideLayout);
 
         if (layoutForThisSwitch) {
           const l = layoutForThisSwitch;
