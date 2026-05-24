@@ -220,12 +220,32 @@ export class Renderer {
     if (signal.state === 'green') return '●';
 
     const isEast = signal.facingDirection === 'east';
-    switch (signal.state) {
-      case 'straight': return isEast ? '→' : '←';
-      case 'diverge_up': return isEast ? '↗' : '↖';
-      case 'diverge_down': return isEast ? '↘' : '↙';
-      default: return '●';
+    if (signal.state === 'straight') return isEast ? '→' : '←';
+    if (signal.state === 'diverge') {
+      const goesDown = this.divergingTargetGoesDown(signal);
+      if (goesDown === null) return '●';
+      if (isEast) return goesDown ? '↘' : '↗';
+      return goesDown ? '↙' : '↖';
     }
+    return '●';
+  }
+
+  // For a divergent signal, returns whether the diagonal physically descends
+  // (true) or ascends (false). Uses layout y-coords so branch links work the
+  // same as crossovers — both ends may share a trackDirection. Returns null if
+  // the relevant geometry can't be resolved.
+  private divergingTargetGoesDown(signal: Signal): boolean | null {
+    if (!this.layout || !this.graph) return null;
+    const switchSeg = this.graph.segments.get(signal.segmentAfter);
+    if (!switchSeg || switchSeg.type !== 'switch') return null;
+    const sw = switchSeg as Switch;
+    const targetId = signal.facingDirection === 'east' ? sw.divergingNext : sw.divergingPrev;
+    if (!targetId) return null;
+    const switchLayout = this.layout.segments.get(sw.id);
+    const targetLayout = this.layout.segments.get(targetId);
+    if (!switchLayout || !targetLayout) return null;
+    if (targetLayout.y === switchLayout.y) return null;
+    return targetLayout.y > switchLayout.y;
   }
 
   private drawTrains(): void {

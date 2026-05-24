@@ -578,15 +578,10 @@ export class Simulation {
           if (sw.state === 'straight') {
             signal.state = 'straight';
           } else {
-            const targetId = isEast ? sw.divergingNext : sw.divergingPrev;
-            const targetSeg = targetId ? this.graph.segments.get(targetId) : null;
-            if (sw.trackDirection === 'west' && targetSeg?.trackDirection === 'east') {
-              signal.state = 'diverge_down';
-            } else if (sw.trackDirection === 'east' && targetSeg?.trackDirection === 'west') {
-              signal.state = 'diverge_up';
-            } else {
-              signal.state = 'diverge_up';
-            }
+            // Arrow direction (up/down) is chosen in the renderer using
+            // physical layout y-coords, since trackDirection alone can't
+            // distinguish branch links where both ends share a direction.
+            signal.state = 'diverge';
           }
         } else {
           // Trailing approach (no choice)
