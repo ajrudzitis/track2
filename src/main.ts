@@ -35,6 +35,11 @@ const source = readFileSync(mapFile, 'utf-8');
 const mapData = parseMapFile(source);
 const graph = TrackGraph.fromMapFile(mapData);
 
+// Layout populates geometry-derived data on the model (e.g. switch conflict
+// sets used by interlocking), so compute it before the simulation runs even
+// in headless debug mode.
+const layout = computeLayout(graph);
+
 // Set up simulation
 const sim = new Simulation(graph);
 sim.setSpeed(mapData.config.speed);
@@ -48,8 +53,6 @@ if (debugMode) {
   runDebug(sim, graph, debugTicks);
   process.exit(0);
 }
-
-const layout = computeLayout(graph);
 const terminal = new Terminal();
 const renderer = new Renderer(terminal.screen);
 renderer.setData(graph, layout);

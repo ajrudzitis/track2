@@ -275,6 +275,14 @@ export class Simulation {
       // Diverging needs the linked partner's lock too — we'll physically
       // traverse it. If it's reserved by someone else we have to wait.
       if (linked.lockedBy && linked.lockedBy !== train.id) return;
+      // The diverging diagonal may geometrically cross other segments
+      // (e.g. a cross-group branch passing through a parallel switch's
+      // track row). Those segments must be clear before we commit, and
+      // we must not be standing inside another active diagonal's path.
+      if (!this.areConflictsClear(sw, train.id)) return;
+      if (!this.areConflictsClear(linked, train.id)) return;
+      if (this.isConflictLocked(sw.id, train.id)) return;
+      if (this.isConflictLocked(linked.id, train.id)) return;
       sw.lockedBy = train.id;
       linked.lockedBy = train.id;
       sw.state = 'diverging';
@@ -282,6 +290,7 @@ export class Simulation {
     } else {
       // Straight-through only locks our own switch. The linked partner is on
       // the other track and may be used independently by a parallel train.
+      if (this.isConflictLocked(sw.id, train.id)) return;
       sw.lockedBy = train.id;
       sw.state = 'straight';
     }
@@ -467,7 +476,34 @@ export class Simulation {
       if (sw.lockedBy && sw.lockedBy !== requestingTrain.id) return false;
     }
 
+    if (this.isConflictLocked(segmentId, requestingTrain.id)) return false;
+
     return this.isSignalGreen(requestingTrain, segmentId);
+  }
+
+  private areConflictsClear(sw: Switch, trainId: string): boolean {
+    for (const conflictId of sw.conflicts) {
+      for (const t of this.trains) {
+        if (t.id !== trainId && t.segmentId === conflictId) return false;
+      }
+      const seg = this.graph.segments.get(conflictId);
+      if (seg?.type === 'switch') {
+        const s = seg as Switch;
+        if (s.lockedBy && s.lockedBy !== trainId) return false;
+      }
+    }
+    return true;
+  }
+
+  private isConflictLocked(segmentId: string, exceptTrainId: string): boolean {
+    for (const seg of this.graph.segments.values()) {
+      if (seg.type !== 'switch') continue;
+      const sw = seg as Switch;
+      if (sw.state !== 'diverging' || sw.lockedBy === null) continue;
+      if (sw.lockedBy === exceptTrainId) continue;
+      if (sw.conflicts.includes(segmentId)) return true;
+    }
+    return false;
   }
 
   private canProceed(train: Train): boolean {
@@ -489,6 +525,13 @@ export class Simulation {
 
       // 1. Basic occupancy check for the guarded segment itself
       if (occupiedSegments.has(guardedId)) {
+        signal.state = 'red';
+        continue;
+      }
+
+      // 1b. A diverging diagonal elsewhere may cross through this segment's
+      // physical footprint; treat that as an occupancy conflict.
+      if (this.isConflictLocked(guardedId, '')) {
         signal.state = 'red';
         continue;
       }

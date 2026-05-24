@@ -379,6 +379,7 @@ export class TrackGraph {
       divergingPrev: null,
       state: 'straight',
       lockedBy: null,
+      conflicts: [],
     };
     this.segments.set(id, sw);
     return sw;

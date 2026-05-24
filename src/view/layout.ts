@@ -193,6 +193,8 @@ export function computeLayout(graph: TrackGraph): LayoutResult {
     });
   }
 
+  computeDiagonalConflicts(graph, segments, switches);
+
   let contentWidth = PADDING_LEFT;
   for (const sl of segments.values()) {
     contentWidth = Math.max(contentWidth, sl.x + sl.width);
@@ -209,6 +211,51 @@ export function computeLayout(graph: TrackGraph): LayoutResult {
   contentWidth += PADDING_LEFT;
 
   return { segments, signals, trackGroups, switches, contentWidth };
+}
+
+/**
+ * Walk each diagonal's intermediate cells and record any other segment whose
+ * track row a cell falls inside. Both endpoint switches gain the crossed
+ * segment in their conflict list, so the simulation enforces interlocking
+ * regardless of which side of the diagonal the conflict was discovered from.
+ */
+function computeDiagonalConflicts(
+  graph: TrackGraph,
+  segments: Map<string, SegmentLayout>,
+  switches: SwitchLayout[],
+): void {
+  const cellToSegment = new Map<string, string>();
+  for (const [segId, sl] of segments) {
+    for (let x = sl.x; x < sl.x + sl.width; x++) {
+      cellToSegment.set(`${x},${sl.y}`, segId);
+    }
+  }
+
+  for (const swl of switches) {
+    const dx = swl.toX - swl.fromX;
+    const dy = swl.toY - swl.fromY;
+    const steps = Math.abs(dy);
+    if (steps === 0) continue;
+
+    const crossed = new Set<string>();
+    for (let i = 1; i < steps; i++) {
+      const y = swl.fromY + i * Math.sign(dy);
+      const x = swl.fromX + Math.round(i * dx / steps);
+      const cellSeg = cellToSegment.get(`${x},${y}`);
+      if (cellSeg && cellSeg !== swl.fromId && cellSeg !== swl.toId) {
+        crossed.add(cellSeg);
+      }
+    }
+
+    for (const endpointId of [swl.fromId, swl.toId]) {
+      const seg = graph.segments.get(endpointId);
+      if (seg?.type !== 'switch') continue;
+      const sw = seg as Switch;
+      for (const c of crossed) {
+        if (!sw.conflicts.includes(c)) sw.conflicts.push(c);
+      }
+    }
+  }
 }
 
 function applyBranchTrackGroupOffsets(graph: TrackGraph, segments: Map<string, SegmentLayout>): void {

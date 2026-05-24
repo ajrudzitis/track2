@@ -25,6 +25,10 @@ export interface Switch extends Segment {
   divergingPrev: string | null;
   state: 'straight' | 'diverging';
   lockedBy: string | null; // train ID currently traversing/locking the switch
+  // Segments whose occupancy conflicts with this switch's diverging state —
+  // populated at layout time from geometric crossings of the diverging diagonal
+  // through other segments' cells.
+  conflicts: string[];
 }
 
 export interface TrackGroup {
