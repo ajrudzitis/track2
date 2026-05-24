@@ -1,0 +1,51 @@
+%% Track2 demo: two routes sharing a common mainline stub
+%%
+%% A six-station mainline (NTH-OAK-PIN-ELM-FIR-GRN) splits at a branch fork
+%% between PIN and ELM, sending diverging trains down to a three-station
+%% branch (BAY-COV-RIV).
+%%
+%% Two routes share the three pre-fork mainline stations:
+%%   - Mainline runs the full mainline NTH <-> GRN (yellow, 4 trains)
+%%   - Branch runs NTH <-> RIV via BAY/COV (magenta, 4 trains)
+%%
+%% Every terminus has a bidirectional crossover so inbound trains hand off
+%% to the natural outbound track for the return leg. The branch fork itself
+%% is one-way per track (BR-2 -> BR-1 for westbound entry from the mainline,
+%% BR-4 -> BR-3 for eastbound entry), matching the 09-advanced.map pattern.
+
+config
+  speed: 1.5
+  dwell: 5s
+  layover: 12s
+end
+
+trackgroup Main
+  west: [NTH-W] <XN-W> ---MW1--- [OAK-W] ---MW2--- [PIN-W] ---MW3--- <BR-2> ---MW4--- [ELM-W] ---MW5--- [FIR-W] ---MW6--- <XG-W> [GRN-W]
+  east: [NTH-E] <XN-E> ---ME1--- [OAK-E] ---ME2--- [PIN-E] ---ME3--- <BR-4> ---ME4--- [ELM-E] ---ME5--- [FIR-E] ---ME6--- <XG-E> [GRN-E]
+end
+
+trackgroup Branch
+  west: <BR-1> ---BW1--- [BAY-W] ---BW2--- [COV-W] ---BW3--- <XR-W> [RIV-W]
+  east: <BR-3> ---BE1--- [BAY-E] ---BE2--- [COV-E] ---BE3--- <XR-E> [RIV-E]
+end
+
+switches
+  XN-W <-> XN-E
+  BR-2 -> BR-1
+  BR-4 -> BR-3
+  XG-W <-> XG-E
+  XR-W <-> XR-E
+end
+
+route Mainline
+  trackgroup: Main
+  color: yellow
+  platforms: NTH, OAK, PIN, ELM, FIR, GRN
+  trains: 4
+end
+
+route Branch
+  color: magenta
+  platforms: NTH, OAK, PIN, BAY, COV, RIV
+  trains: 4
+end
