@@ -428,14 +428,22 @@ export class Simulation {
 
     // If we're leaving a switch unit and entering something else, release our locks.
     // Only clear locks this train actually owns — never stomp another train's lock.
+    // Reset state alongside the lock so debug snapshots (and any consumer that
+    // reads sw.state without checking lockedBy) don't see a phantom diverging.
     if (prevSeg?.type === 'switch' && nextSeg?.type !== 'switch') {
       const sw = prevSeg as Switch;
-      if (sw.lockedBy === train.id) sw.lockedBy = null;
+      if (sw.lockedBy === train.id) {
+        sw.lockedBy = null;
+        sw.state = 'straight';
+      }
 
       for (const linkedId of [sw.divergingNext, sw.divergingPrev]) {
         if (!linkedId) continue;
         const linked = this.graph.segments.get(linkedId) as Switch | undefined;
-        if (linked && linked.lockedBy === train.id) linked.lockedBy = null;
+        if (linked && linked.lockedBy === train.id) {
+          linked.lockedBy = null;
+          linked.state = 'straight';
+        }
       }
     }
 
