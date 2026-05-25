@@ -1,0 +1,38 @@
+%% Track2 demo: multi-switch chain reservation
+%%
+%% Two single-switch bidirectional crossovers sit back-to-back at each terminus
+%% (X1+X2 with Y1+Y2 at the west end; Z1+Z2 with D1+D2 at the east end).
+%% A train arriving at a terminus that needs to land on the opposite-track
+%% platform crosses via the FIRST switch (diverging) and continues straight
+%% through the SECOND switch on the new track. That's a 2-unit chain — and
+%% the autorouter now locks both switches atomically before the train commits.
+%%
+%% Watch the debug output: when a train approaches the terminus you'll see two
+%% switches in the same chain flip to lockedBy=<train> on the SAME tick. Without
+%% chain reservation, two trains entering the chain from opposite sides could
+%% grab one switch each and deadlock.
+
+config
+  speed: 1.5
+  dwell: 5s
+  layover: 12s
+end
+
+trackgroup Main
+  west: [WEN-W] <X1> <X2> ---W1--- [MID-W] ---W2--- <Z1> <Z2> [EEN-W]
+  east: [WEN-E] <Y1> <Y2> ---E1--- [MID-E] ---E2--- <D1> <D2> [EEN-E]
+end
+
+switches
+  X1 <-> Y1
+  X2 <-> Y2
+  Z1 <-> D1
+  Z2 <-> D2
+end
+
+route Main
+  trackgroup: Main
+  color: cyan
+  platforms: WEN, MID, EEN
+  trains: 2
+end

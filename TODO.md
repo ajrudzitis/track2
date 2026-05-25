@@ -75,6 +75,11 @@
 - [x] Branch switches
 - [x] Routes spanning separate track groups with unique station abbreviations
 - [ ] Complex signal interlocking
+  - [x] Multi-switch chain reservation (atomic all-or-nothing along adjacent
+        switch chain; train waits at entry signal if any link is held)
+  - [x] Demo map: maps/09b-chain.map
+  - [ ] 3-aspect signals (yellow caution when next signal is red)
+  - [ ] Tighten conflict-route prevention at entry signals
 - [x] Create maps/09-advanced.map
 
 ## Phase 10: Polish + Special Features

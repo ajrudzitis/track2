@@ -45,6 +45,18 @@ route, and last-visited platform index — followed by every switch's `state` an
 `lockedBy`. Use this in preference to writing a one-off harness when chasing
 simulation bugs.
 
+For rendering bugs (diagonals overlapping labels, misaligned tracks, layout
+spacing), use the snapshot script to dump a single frame of plain text — no
+ANSI, no animation, no raw terminal:
+
+```bash
+npx tsx scripts/render-snapshot.ts maps/09b-chain.map
+```
+
+The output is the screen buffer as it would be drawn at spawn time, so you can
+read it inline or pipe it through `diff` to compare before/after a layout
+change. Use this rather than firing up the TUI when iterating on view code.
+
 ## Key Conventions
 
 - Track character: `━` (U+2501, BOX DRAWINGS HEAVY HORIZONTAL)

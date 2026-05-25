@@ -256,43 +256,87 @@ export class Simulation {
     if (train.state === 'dwelling') return;
 
     const seg = this.graph.segments.get(train.segmentId)!;
-    const nextId = train.direction === 'east' ? seg.next : seg.prev;
+    const firstId = train.direction === 'east' ? seg.next : seg.prev;
 
-    if (!nextId) return;
-    const nextSeg = this.graph.segments.get(nextId)!;
-    if (nextSeg.type !== 'switch') return;
+    if (!firstId) return;
+    const firstSeg = this.graph.segments.get(firstId);
+    if (!firstSeg || firstSeg.type !== 'switch') return;
 
-    const sw = nextSeg as Switch;
-    
-    // 1. Try to get the lock on our own side first.
-    if (sw.lockedBy && sw.lockedBy !== train.id) return;
+    // Walk the adjacent switch chain the train will traverse and reserve all of
+    // it atomically. Without this, a train can grab the first switch in a chain
+    // and then stall (or deadlock with an opposing train) when the next switch
+    // turns out to be unavailable. Each "unit" in the chain is either a single
+    // straight-through switch or a diverging pair (source + linked partner that
+    // the diagonal lands on).
+    type Unit = { sw: Switch; state: 'straight' | 'diverging'; linked: Switch | null };
+    const units: Unit[] = [];
+    const seen = new Set<string>();
+    let currentId: string | null = firstId;
 
-    const shouldDiverge = this.shouldTrainDiverge(train, sw);
-    const linkedId = train.direction === 'east' ? sw.divergingNext : sw.divergingPrev;
-    const linked = linkedId ? (this.graph.segments.get(linkedId) as Switch) : null;
+    while (currentId) {
+      if (seen.has(currentId)) break;
+      const curr = this.graph.segments.get(currentId);
+      if (!curr || curr.type !== 'switch') break;
+      seen.add(currentId);
 
-    if (shouldDiverge && linked) {
-      // Diverging needs the linked partner's lock too — we'll physically
-      // traverse it. If it's reserved by someone else we have to wait.
-      if (linked.lockedBy && linked.lockedBy !== train.id) return;
-      // The diverging diagonal may geometrically cross other segments
-      // (e.g. a cross-group branch passing through a parallel switch's
-      // track row). Those segments must be clear before we commit, and
-      // we must not be standing inside another active diagonal's path.
-      if (!this.areConflictsClear(sw, train.id)) return;
-      if (!this.areConflictsClear(linked, train.id)) return;
-      if (this.isConflictLocked(sw.id, train.id)) return;
-      if (this.isConflictLocked(linked.id, train.id)) return;
-      sw.lockedBy = train.id;
-      linked.lockedBy = train.id;
-      sw.state = 'diverging';
-      linked.state = 'diverging';
-    } else {
-      // Straight-through only locks our own switch. The linked partner is on
-      // the other track and may be used independently by a parallel train.
-      if (this.isConflictLocked(sw.id, train.id)) return;
-      sw.lockedBy = train.id;
-      sw.state = 'straight';
+      const sw = curr as Switch;
+      const shouldDiverge = this.shouldTrainDiverge(train, sw);
+      const linkedId = train.direction === 'east' ? sw.divergingNext : sw.divergingPrev;
+
+      let state: 'straight' | 'diverging';
+      let linked: Switch | null = null;
+      let nextStep: string | null;
+
+      if (shouldDiverge && linkedId) {
+        const linkedSeg = this.graph.segments.get(linkedId);
+        linked = linkedSeg && linkedSeg.type === 'switch' ? (linkedSeg as Switch) : null;
+        state = 'diverging';
+        if (linked) {
+          // The linked partner is the diagonal endpoint — chain continues from
+          // its straight exit, not from its own diverging path.
+          seen.add(linked.id);
+          nextStep = train.direction === 'east' ? linked.next : linked.prev;
+        } else {
+          nextStep = null;
+        }
+      } else {
+        state = 'straight';
+        nextStep = train.direction === 'east' ? sw.next : sw.prev;
+      }
+
+      units.push({ sw, state, linked });
+
+      if (!nextStep) break;
+      const nextSeg = this.graph.segments.get(nextStep);
+      if (!nextSeg || nextSeg.type !== 'switch') break;
+      currentId = nextStep;
+    }
+
+    if (units.length === 0) return;
+
+    // Validate: every unit in the chain must be acquirable. All-or-nothing —
+    // the train waits at the entry signal if any link in the chain is held.
+    for (const u of units) {
+      if (u.sw.lockedBy && u.sw.lockedBy !== train.id) return;
+      if (u.state === 'diverging') {
+        if (u.linked && u.linked.lockedBy && u.linked.lockedBy !== train.id) return;
+        if (!this.areConflictsClear(u.sw, train.id)) return;
+        if (u.linked && !this.areConflictsClear(u.linked, train.id)) return;
+        if (this.isConflictLocked(u.sw.id, train.id)) return;
+        if (u.linked && this.isConflictLocked(u.linked.id, train.id)) return;
+      } else {
+        if (this.isConflictLocked(u.sw.id, train.id)) return;
+      }
+    }
+
+    // Commit the chain.
+    for (const u of units) {
+      u.sw.lockedBy = train.id;
+      u.sw.state = u.state;
+      if (u.state === 'diverging' && u.linked) {
+        u.linked.lockedBy = train.id;
+        u.linked.state = 'diverging';
+      }
     }
   }
 
@@ -426,23 +470,20 @@ export class Simulation {
     const prevSeg = this.graph.segments.get(train.segmentId);
     const nextSeg = this.graph.segments.get(segmentId);
 
-    // If we're leaving a switch unit and entering something else, release our locks.
-    // Only clear locks this train actually owns — never stomp another train's lock.
-    // Reset state alongside the lock so debug snapshots (and any consumer that
-    // reads sw.state without checking lockedBy) don't see a phantom diverging.
+    // If we're leaving a switch unit and entering something else, release our
+    // locks. Sweep every switch the train owns — chain reservation may have
+    // pre-locked switches earlier in the path that aren't reachable via the
+    // immediate-linked-partner walk. Only clear locks this train actually
+    // owns — never stomp another train's lock. Reset state alongside the lock
+    // so debug snapshots (and any consumer that reads sw.state without checking
+    // lockedBy) don't see a phantom diverging.
     if (prevSeg?.type === 'switch' && nextSeg?.type !== 'switch') {
-      const sw = prevSeg as Switch;
-      if (sw.lockedBy === train.id) {
-        sw.lockedBy = null;
-        sw.state = 'straight';
-      }
-
-      for (const linkedId of [sw.divergingNext, sw.divergingPrev]) {
-        if (!linkedId) continue;
-        const linked = this.graph.segments.get(linkedId) as Switch | undefined;
-        if (linked && linked.lockedBy === train.id) {
-          linked.lockedBy = null;
-          linked.state = 'straight';
+      for (const seg of this.graph.segments.values()) {
+        if (seg.type !== 'switch') continue;
+        const sw = seg as Switch;
+        if (sw.lockedBy === train.id) {
+          sw.lockedBy = null;
+          sw.state = 'straight';
         }
       }
     }
