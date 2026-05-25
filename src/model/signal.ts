@@ -7,6 +7,11 @@ export type SignalState = 'red' | 'green' | 'straight' | 'diverge';
 export interface Signal {
   id: string;
   state: SignalState;
+  // 3-aspect caution: signal would be clear, but the NEXT signal a train would
+  // encounter after passing this one is currently red. Renderer paints the
+  // glyph yellow while preserving whatever symbol `state` would otherwise
+  // produce (●, →, ↗, etc.). Has no meaning when state === 'red'.
+  caution: boolean;
   facingDirection: 'west' | 'east';  // which direction of travel this signal faces
   segmentBefore: string;             // segment id on the approach side
   segmentAfter: string;              // segment id being guarded
@@ -34,6 +39,7 @@ export function generateSignals(
     signals.push({
       id: `${prefix}${counter}E`,
       state: 'green',
+      caution: false,
       facingDirection: 'east',
       segmentBefore: leftSeg,
       segmentAfter: rightSeg,
@@ -44,6 +50,7 @@ export function generateSignals(
     signals.push({
       id: `${prefix}${counter}W`,
       state: 'green',
+      caution: false,
       facingDirection: 'west',
       segmentBefore: rightSeg,
       segmentAfter: leftSeg,

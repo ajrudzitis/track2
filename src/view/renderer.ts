@@ -22,6 +22,7 @@ const LABEL_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
 const PLATFORM_LABEL_STYLE: CellStyle = { fg: 30, bg: 47, bold: true, inverse: false };
 const SIGNAL_RED: CellStyle = { fg: 31, bg: 40, bold: true, inverse: false };
 const SIGNAL_GREEN: CellStyle = { fg: 32, bg: 40, bold: true, inverse: false };
+const SIGNAL_YELLOW: CellStyle = { fg: 33, bg: 40, bold: true, inverse: false };
 const SIGNAL_LABEL_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
 const STATUS_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
 
@@ -201,7 +202,9 @@ export class Renderer {
     if (!this.layout) return;
 
     for (const sl of this.layout.signals) {
-      const style = sl.signal.state === 'red' ? SIGNAL_RED : SIGNAL_GREEN;
+      const style = sl.signal.state === 'red'
+        ? SIGNAL_RED
+        : (sl.signal.caution ? SIGNAL_YELLOW : SIGNAL_GREEN);
       const symbol = this.getSignalSymbol(sl.signal);
       this.putWorld(sl.x, sl.symbolY, symbol, style);
 

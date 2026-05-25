@@ -4,7 +4,7 @@
 
 import type { Train, Segment, Platform, Switch, Route } from './types.js';
 import { ANSI_COLORS } from './types.js';
-import type { Signal } from './signal.js';
+import type { Signal, SignalState } from './signal.js';
 import type { TrackGraph } from './graph.js';
 
 /**
@@ -633,6 +633,75 @@ export class Simulation {
         signal.state = 'green';
       }
     }
+
+    this.applyCautionAspect();
+  }
+
+  /**
+   * 3-aspect: any non-red signal whose immediately next signal in the train's
+   * direction is red gets a 'caution' flag. The renderer paints it yellow while
+   * keeping whatever symbol the underlying aspect would produce — so a switch
+   * point signal shows its straight/diverge arrow in yellow, and a plain
+   * segment signal shows a yellow ●.
+   *
+   * Read state at the top once: we only ever flip non-red → cautious, never
+   * change a signal's red-ness, so a one-pass walk against the snapshot is
+   * stable regardless of iteration order.
+   */
+  private applyCautionAspect(): void {
+    const states = new Map<string, SignalState>();
+    for (const s of this.graph.signals) {
+      s.caution = false;
+      states.set(s.id, s.state);
+    }
+
+    for (const signal of this.graph.signals) {
+      if (states.get(signal.id) === 'red') continue;
+      const next = this.findNextSignalAhead(signal);
+      if (next && states.get(next.id) === 'red') {
+        signal.caution = true;
+      }
+    }
+  }
+
+  /**
+   * Walk forward from `signal` along the path a train would take and return
+   * the first signal that faces the same direction. Follows switches per their
+   * current `state` (straight or diverging) so the lookahead reflects the
+   * route currently set.
+   */
+  private findNextSignalAhead(signal: Signal): Signal | null {
+    const direction = signal.facingDirection;
+    let currentId: string | null = signal.segmentAfter;
+    const visited = new Set<string>();
+
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+      const seg = this.graph.segments.get(currentId);
+      if (!seg) return null;
+
+      let nextId: string | null;
+      if (seg.type === 'switch' && (seg as Switch).state === 'diverging') {
+        const sw = seg as Switch;
+        nextId = direction === 'east' ? sw.divergingNext : sw.divergingPrev;
+      } else {
+        nextId = direction === 'east' ? seg.next : seg.prev;
+      }
+
+      if (!nextId) return null;
+
+      for (const s of this.graph.signals) {
+        if (s.facingDirection === direction &&
+            s.segmentBefore === currentId &&
+            s.segmentAfter === nextId) {
+          return s;
+        }
+      }
+
+      currentId = nextId;
+    }
+
+    return null;
   }
 
   private isSignalGreen(train: Train, targetSegmentId: string): boolean {

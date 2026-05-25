@@ -1,0 +1,30 @@
+%% Track2 demo: 3-aspect signals (yellow caution)
+%%
+%% A long straight line with several closely-spaced platforms. With enough
+%% trains chasing each other, the signals in front of a trailing train show
+%% the classic green/yellow/red progression — the signal directly behind a
+%% dwelling/blocked train is red, the one behind THAT is yellow (caution,
+%% "next signal is red"), and everything further back stays green.
+%%
+%% Watch the debug output (lines starting "caution:") to see which signals
+%% are flagged, and run the TUI to see them rendered yellow:
+%%
+%%   npm run dev -- maps/09c-aspects.map
+
+config
+  speed: 1.5
+  dwell: 12s
+  layover: 15s
+end
+
+trackgroup Main
+  west: [AAA-W] ---W1--- [BBB-W] ---W2--- [CCC-W] ---W3--- [DDD-W] ---W4--- [EEE-W]
+  east: [AAA-E] ---E1--- [BBB-E] ---E2--- [CCC-E] ---E3--- [DDD-E] ---E4--- [EEE-E]
+end
+
+route Main
+  trackgroup: Main
+  color: cyan
+  platforms: AAA, BBB, CCC, DDD, EEE
+  trains: 6
+end

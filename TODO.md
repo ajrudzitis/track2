@@ -78,7 +78,9 @@
   - [x] Multi-switch chain reservation (atomic all-or-nothing along adjacent
         switch chain; train waits at entry signal if any link is held)
   - [x] Demo map: maps/09b-chain.map
-  - [ ] 3-aspect signals (yellow caution when next signal is red)
+  - [x] 3-aspect signals: yellow caution when next signal is red (arrow
+        signals at switches keep their glyph, just tinted yellow)
+  - [x] Demo map: maps/09c-aspects.map
   - [ ] Tighten conflict-route prevention at entry signals
 - [x] Create maps/09-advanced.map
 

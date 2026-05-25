@@ -45,4 +45,8 @@ function snapshot(sim: Simulation, switchIds: string[], graph: TrackGraph, label
     if (!sw) continue;
     console.log(`    ${id.padEnd(5)} state=${sw.state.padEnd(9)} lockedBy=${sw.lockedBy ?? '-'}`);
   }
+  const cautioned = graph.signals.filter(s => s.caution).map(s => s.id);
+  if (cautioned.length > 0) {
+    console.log(`    caution: ${cautioned.join(', ')}`);
+  }
 }
