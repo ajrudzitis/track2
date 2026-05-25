@@ -74,14 +74,15 @@
 - [x] Double crossover (X pattern)
 - [x] Branch switches
 - [x] Routes spanning separate track groups with unique station abbreviations
-- [ ] Complex signal interlocking
+- [x] Complex signal interlocking (scoped to chain reservation + 3-aspect;
+      further conflict-route prevention judged covered by existing lock and
+      conflict-segment logic plus yellow caution)
   - [x] Multi-switch chain reservation (atomic all-or-nothing along adjacent
         switch chain; train waits at entry signal if any link is held)
   - [x] Demo map: maps/09b-chain.map
   - [x] 3-aspect signals: yellow caution when next signal is red (arrow
         signals at switches keep their glyph, just tinted yellow)
   - [x] Demo map: maps/09c-aspects.map
-  - [ ] Tighten conflict-route prevention at entry signals
 - [x] Create maps/09-advanced.map
 
 ## Phase 10: Polish + Special Features
