@@ -370,7 +370,7 @@ export class TrackGraph {
     sw = {
       id,
       type: 'switch',
-      displayWidth: 20, // Enough for a clean diagonal without excessive space
+      displayWidth: 14, // Width chosen so the diagonal anchors (¼ and ¾) span dx=7, matching dy=7 for a 45° slope
       trackGroupName,
       trackDirection: direction,
       next: null,

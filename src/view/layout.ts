@@ -79,7 +79,10 @@ export function computeLayout(graph: TrackGraph): LayoutResult {
     const westSignalSymbolY = westY + 1;
     const westSignalLabelY = westSignalSymbolY + 1;
 
-    const eastLabelY = westSignalLabelY + 2; // 1 line gap
+    // 3-line gap between tracks (dy=7). With switch width 14, the X-double
+    // diagonals (dx=7) form a clean 45° open-X with adjacent ╲╱ / ╱╲ at the
+    // midpoint rather than a tight ╳ — easier to read at a glance.
+    const eastLabelY = westSignalLabelY + 4;
     const eastY = eastLabelY + 1;
     const eastSignalSymbolY = eastY + 1;
     const eastSignalLabelY = eastSignalSymbolY + 1;
@@ -294,7 +297,12 @@ function applyBranchTrackGroupOffsets(graph: TrackGraph, segments: Map<string, S
       const toOffset = offsets.get(target.trackGroupName) ?? 0;
       const fromX = fromLayout.x + fromOffset + Math.floor(fromLayout.width * 0.25);
       const toX = toLayout.x + toOffset + Math.floor(toLayout.width * 0.75);
-      const needed = fromX + MIN_FORWARD_SWITCH_COLUMNS - toX;
+      // Require dx >= dy so the diagonal renders at <=45° (one column per row).
+      // Without this, dy>dx makes the renderer stack ╲ glyphs vertically and
+      // the diagonal looks jagged.
+      const dy = Math.abs(toLayout.y - fromLayout.y);
+      const minForward = Math.max(MIN_FORWARD_SWITCH_COLUMNS, dy);
+      const needed = fromX + minForward - toX;
 
       if (needed > 0) {
         offsets.set(target.trackGroupName, toOffset + needed);

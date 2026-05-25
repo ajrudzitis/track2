@@ -91,9 +91,6 @@
 - [ ] Scrolling for large maps
 - [ ] Status bar
 - [x] Basic .map file error reporting
-- [ ] Revisit cross-group diagonal geometry. Junctions land at their leftmost
-      column now, but the diagonals between Main and Branch in
-      maps/09-advanced.map are still jagged (slope < 1 makes ╲ chars stack
-      vertically). Want a layout that produces smooth ~45° diagonals — likely
-      requires either tightening the inter-trackgroup vertical gap or letting
-      the diagonal anchor float along the source/target segments.
+- [x] Smooth cross-group diagonals. Branch-target trackgroup offset now
+      requires dx >= dy, so the diagonal always renders at <=45° (one column
+      per row) instead of stacking ╲ glyphs vertically.
