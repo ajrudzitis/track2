@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { Terminal } from './view/terminal.js';
 import { InputHandler } from './view/input.js';
-import { Renderer } from './view/renderer.js';
+import { Renderer, type ArrivalRow } from './view/renderer.js';
 import { parseMapFile } from './parser/parser.js';
 import { TrackGraph } from './model/graph.js';
 import { computeLayout } from './view/layout.js';
@@ -58,9 +58,45 @@ const renderer = new Renderer(terminal.screen);
 renderer.setData(graph, layout);
 const SCROLL_COLUMNS = 8;
 
+const stationAbbrs = graph.stationAbbrsInOrder();
+let arrivalStationIdx: number | null = null;
+
+function destinationFor(train: typeof sim.trains[number]): string {
+  if (!train.routeId) return '-';
+  const route = graph.routes.find(r => r.name === train.routeId);
+  if (!route || route.platformAbbrs.length === 0) return '-';
+  return train.direction === 'east'
+    ? route.platformAbbrs[route.platformAbbrs.length - 1]
+    : route.platformAbbrs[0];
+}
+
+function computeArrivalRows(abbr: string): ArrivalRow[] {
+  const rows: ArrivalRow[] = [];
+  for (const train of sim.trains) {
+    const eta = sim.estimateArrival(train, abbr);
+    if (!eta) continue;
+    rows.push({
+      trainId: train.id,
+      routeColor: train.color,
+      direction: train.direction,
+      destination: destinationFor(train),
+      platformId: eta.platformId,
+      etaSeconds: eta.etaSeconds,
+    });
+  }
+  rows.sort((a, b) => a.etaSeconds - b.etaSeconds);
+  return rows;
+}
+
 function draw(): void {
   renderer.setTrains(sim.trains);
   renderer.setSpeedDisplay(`${sim.currentSpeed.toFixed(2)}x`);
+  if (arrivalStationIdx !== null && stationAbbrs.length > 0) {
+    const abbr = stationAbbrs[arrivalStationIdx];
+    renderer.setArrivalBoard(abbr, computeArrivalRows(abbr));
+  } else {
+    renderer.setArrivalBoard(null, []);
+  }
   renderer.render();
   terminal.flush();
 }
@@ -90,6 +126,23 @@ const input = new InputHandler((key: string) => {
     draw();
   } else if (key === 'end') {
     renderer.scrollToEnd();
+    draw();
+  } else if (key === 'a') {
+    if (stationAbbrs.length === 0) return;
+    arrivalStationIdx = arrivalStationIdx === null ? 0 : null;
+    draw();
+  } else if (key === '\x1b') {
+    if (arrivalStationIdx !== null) {
+      arrivalStationIdx = null;
+      draw();
+    }
+  } else if (key === '[') {
+    if (arrivalStationIdx === null || stationAbbrs.length === 0) return;
+    arrivalStationIdx = (arrivalStationIdx - 1 + stationAbbrs.length) % stationAbbrs.length;
+    draw();
+  } else if (key === ']') {
+    if (arrivalStationIdx === null || stationAbbrs.length === 0) return;
+    arrivalStationIdx = (arrivalStationIdx + 1) % stationAbbrs.length;
     draw();
   }
 });

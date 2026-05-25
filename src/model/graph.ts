@@ -233,6 +233,29 @@ export class TrackGraph {
     return this.getStationPlatforms(abbr, trackGroupName);
   }
 
+  /**
+   * Ordered list of unique station abbreviations as they appear left-to-right
+   * across the map (walking each trackgroup's west track, then east, in order).
+   * Used to cycle the arrival-board selection in a predictable spatial order.
+   */
+  stationAbbrsInOrder(): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const tg of this.trackGroups) {
+      for (const segIds of [tg.westSegments, tg.eastSegments]) {
+        for (const id of segIds) {
+          const seg = this.segments.get(id);
+          if (seg?.type !== 'platform') continue;
+          const abbr = (seg as Platform).stationAbbr;
+          if (seen.has(abbr)) continue;
+          seen.add(abbr);
+          out.push(abbr);
+        }
+      }
+    }
+    return out;
+  }
+
   getStationPlatforms(abbr: string, trackGroupName?: string): string[] {
     const ids: string[] = [];
     for (const tg of this.trackGroups) {

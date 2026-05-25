@@ -20,6 +20,9 @@ const TRACK_STYLE: CellStyle = { fg: 37, bg: 40, bold: true, inverse: false };
 const ACTIVE_TRACK_STYLE: CellStyle = { fg: 32, bg: 40, bold: true, inverse: false };
 const LABEL_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
 const PLATFORM_LABEL_STYLE: CellStyle = { fg: 30, bg: 47, bold: true, inverse: false };
+// Selector color is in the bright range (100-107) so it never matches a route's
+// background color (routes use 41-47).
+const PLATFORM_LABEL_SELECTED_STYLE: CellStyle = { fg: 30, bg: 106, bold: true, inverse: false };
 const SIGNAL_RED: CellStyle = { fg: 31, bg: 40, bold: true, inverse: false };
 const SIGNAL_GREEN: CellStyle = { fg: 32, bg: 40, bold: true, inverse: false };
 const SIGNAL_YELLOW: CellStyle = { fg: 33, bg: 40, bold: true, inverse: false };
@@ -29,6 +32,22 @@ const STATUS_STYLE: CellStyle = { fg: 90, bg: 40, bold: false, inverse: false };
 const WEST_ARROW = '◂';
 const EAST_ARROW = '▸';
 
+function formatEta(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  const mm = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+}
+
+export interface ArrivalRow {
+  trainId: string;
+  routeColor: number;
+  direction: 'west' | 'east';
+  destination: string; // 3-char terminus abbr the train is heading toward
+  platformId: string;
+  etaSeconds: number;
+}
+
 export class Renderer {
   private screen: ScreenBuffer;
   private layout: LayoutResult | null = null;
@@ -36,9 +55,16 @@ export class Renderer {
   private trains: Train[] = [];
   private speedDisplay: string = '1.0x';
   private scrollX: number = 0;
+  private arrivalStationAbbr: string | null = null;
+  private arrivalRows: ArrivalRow[] = [];
 
   constructor(screen: ScreenBuffer) {
     this.screen = screen;
+  }
+
+  setArrivalBoard(stationAbbr: string | null, rows: ArrivalRow[]): void {
+    this.arrivalStationAbbr = stationAbbr;
+    this.arrivalRows = rows;
   }
 
   setData(graph: TrackGraph, layout: LayoutResult): void {
@@ -74,6 +100,7 @@ export class Renderer {
       this.drawSwitches();
       this.drawSignals();
       this.drawTrains();
+      if (this.arrivalStationAbbr) this.drawArrivalBoard();
     }
     this.drawStatusBar();
   }
@@ -121,7 +148,10 @@ export class Renderer {
         const plat = seg as Platform;
         const label = ` ${plat.id} `;
         const labelX = sl.x + Math.floor((sl.width - label.length) / 2);
-        this.putWorldString(labelX, sl.labelY, label, PLATFORM_LABEL_STYLE);
+        const style = (this.arrivalStationAbbr && plat.stationAbbr === this.arrivalStationAbbr)
+          ? PLATFORM_LABEL_SELECTED_STYLE
+          : PLATFORM_LABEL_STYLE;
+        this.putWorldString(labelX, sl.labelY, label, style);
       } else if (seg.type === 'switch' && TrackGraph.isJunction(seg as Switch)) {
         // Junction: the diagonal is the visual; no label, no Y.
       } else {
@@ -319,6 +349,52 @@ export class Renderer {
     }
   }
 
+  private drawArrivalBoard(): void {
+    if (!this.arrivalStationAbbr) return;
+
+    const header = ` ${this.arrivalStationAbbr} arrivals `;
+    const rows = this.arrivalRows.slice(0, 8);
+
+    const rowTexts = rows.length === 0
+      ? ['(no inbound trains)']
+      : rows.map(r => {
+          const arrow = r.direction === 'east' ? EAST_ARROW : WEST_ARROW;
+          return `${r.trainId.padEnd(4)} ${arrow} ${r.destination.padEnd(3)}  ${r.platformId.padEnd(6)} ${formatEta(r.etaSeconds)}`;
+        });
+
+    const innerWidth = Math.max(header.length, ...rowTexts.map(t => t.length + 2));
+    const totalWidth = innerWidth + 2;
+    const totalHeight = rowTexts.length + 2;
+
+    const x0 = Math.max(0, this.screen.width - totalWidth - 1);
+    const y0 = 0;
+
+    // Top border with embedded header.
+    const headerPadded = header.padEnd(innerWidth, '─');
+    this.screen.putString(x0, y0, '┌' + headerPadded + '┐', STATUS_STYLE);
+
+    for (let i = 0; i < rowTexts.length; i++) {
+      const padded = ' ' + rowTexts[i].padEnd(innerWidth - 1);
+      this.screen.put(x0, y0 + 1 + i, '│', STATUS_STYLE);
+      this.screen.put(x0 + totalWidth - 1, y0 + 1 + i, '│', STATUS_STYLE);
+      // Color the train ID with its route color; rest is default text style.
+      if (rows[i]) {
+        const row = rows[i];
+        const trainStyle: CellStyle = { fg: 30, bg: row.routeColor, bold: true, inverse: false };
+        for (let c = 0; c < padded.length; c++) {
+          const ch = padded[c];
+          // Color only the train-ID columns (1..1+4).
+          const isTrainId = c >= 1 && c <= 4 && ch !== ' ';
+          this.screen.put(x0 + 1 + c, y0 + 1 + i, ch, isTrainId ? trainStyle : STATUS_STYLE);
+        }
+      } else {
+        this.screen.putString(x0 + 1, y0 + 1 + i, padded, STATUS_STYLE);
+      }
+    }
+
+    this.screen.putString(x0, y0 + totalHeight - 1, '└' + '─'.repeat(innerWidth) + '┘', STATUS_STYLE);
+  }
+
   private drawStatusBar(): void {
     const y = this.screen.height - 1;
     const trainCount = this.trains.length;
@@ -329,6 +405,7 @@ export class Renderer {
       const visibleEnd = Math.min(this.scrollX + this.screen.width, contentWidth);
       parts.push('←/→ scroll', 'Home/End', `${visibleStart}-${visibleEnd}/${contentWidth}`);
     }
+    parts.push(this.arrivalStationAbbr ? 'a close · [/] station' : 'a arrivals');
     parts.push('q quit', this.speedDisplay);
     const status = parts.join('  │  ');
     this.screen.putString(0, y, status, STATUS_STYLE);

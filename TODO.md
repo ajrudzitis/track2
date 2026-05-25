@@ -86,7 +86,10 @@
 - [x] Create maps/09-advanced.map
 
 ## Phase 10: Polish + Special Features
-- [ ] Arrival board
+- [x] Arrival board: per-station overlay, `a` toggle, `[`/`]` cycle, `Esc`
+      close. Highlights selected station's platforms. ETAs are route-aware
+      (walker mirrors autorouter switch decisions) so trains needing future
+      diverts are included.
 - [ ] Manual switch override
 - [ ] Scrolling for large maps
 - [ ] Status bar

@@ -167,6 +167,148 @@ export class Simulation {
     return undefined;
   }
 
+  /**
+   * Project a train's arrival at the given station. Walks forward from the
+   * train's current position, route-aware: at each switch it mirrors what the
+   * autorouter would do (chooses the path that leads to the next route stop)
+   * instead of just following the current physical switch state. Handles
+   * end-of-track reversals + intermediate-platform dwells + simulated route
+   * advancement as the walker crosses each platform. Returns the predicted
+   * arrival platform id and ETA in seconds (already scaled by sim speed), or
+   * null if unreachable.
+   */
+  estimateArrival(train: Train, stationAbbr: string): { platformId: string; etaSeconds: number } | null {
+    const startSeg = this.graph.segments.get(train.segmentId);
+    if (!startSeg) return null;
+
+    if (startSeg.type === 'platform' && (startSeg as Platform).stationAbbr === stationAbbr) {
+      const dwellLeft = train.state === 'dwelling' ? train.dwellRemaining : 0;
+      return { platformId: train.segmentId, etaSeconds: dwellLeft / this.speed };
+    }
+
+    const route = train.routeId ? this.graph.routes.find(r => r.name === train.routeId) : undefined;
+
+    let simTime = train.state === 'dwelling' ? train.dwellRemaining : 0;
+    const remaining = train.direction === 'east'
+      ? Math.max(0, 1 - train.position)
+      : Math.max(0, train.position);
+    simTime += remaining * BASE_SEGMENT_TIME;
+
+    let segId: string = train.segmentId;
+    let direction = train.direction;
+    let lastPlatformIndex = train.lastPlatformIndex ?? 0;
+    const visited = new Set<string>();
+
+    for (let i = 0; i < 500; i++) {
+      const seg = this.graph.segments.get(segId);
+      if (!seg) return null;
+
+      const nextId = this.projectedNextSegment(seg, direction, route, lastPlatformIndex, train.trackDirection);
+
+      if (!nextId) {
+        if (seg.type === 'platform') {
+          const layover = route?.layover ?? (seg as Platform).dwellTime;
+          simTime += layover;
+        }
+        direction = direction === 'east' ? 'west' : 'east';
+        const key = `${segId}|${direction}`;
+        if (visited.has(key)) return null;
+        visited.add(key);
+        simTime += BASE_SEGMENT_TIME;
+        continue;
+      }
+
+      const nextSeg = this.graph.segments.get(nextId);
+      if (!nextSeg) return null;
+
+      if (nextSeg.type === 'platform' && (nextSeg as Platform).stationAbbr === stationAbbr) {
+        simTime += 0.5 * BASE_SEGMENT_TIME;
+        return { platformId: nextId, etaSeconds: simTime / this.speed };
+      }
+
+      simTime += BASE_SEGMENT_TIME;
+      if (nextSeg.type === 'platform') {
+        simTime += (nextSeg as Platform).dwellTime;
+        if (route) {
+          const abbr = (nextSeg as Platform).stationAbbr;
+          const idx = route.platformAbbrs.indexOf(abbr);
+          if (idx >= 0) lastPlatformIndex = idx;
+        }
+      }
+
+      const key = `${nextId}|${direction}`;
+      if (visited.has(key)) return null;
+      visited.add(key);
+      segId = nextId;
+    }
+
+    return null;
+  }
+
+  /**
+   * For the arrival walker: pick the next segment a route-following train
+   * would take from `seg`. At switches, mirror autoRouteTrain's decision
+   * (path that reaches the next-route-stop target) instead of relying on
+   * the physical switch state, which only reflects routes already committed.
+   */
+  private projectedNextSegment(
+    seg: Segment,
+    direction: 'west' | 'east',
+    route: Route | undefined,
+    lastPlatformIndex: number,
+    trackDirection: 'west' | 'east',
+  ): string | null {
+    if (seg.type !== 'switch') {
+      return direction === 'east' ? seg.next : seg.prev;
+    }
+    const sw = seg as Switch;
+    const straight = direction === 'east' ? sw.next : sw.prev;
+    const diverging = direction === 'east' ? sw.divergingNext : sw.divergingPrev;
+
+    if (route) {
+      const target = this.projectedRouteTarget(route, lastPlatformIndex, direction, trackDirection);
+      if (target) {
+        const straightReachable = straight ? this.isSegmentReachable(straight, target, direction) : false;
+        const divergingReachable = diverging ? this.isSegmentReachable(diverging, target, direction) : false;
+        if (straightReachable) return straight;
+        if (divergingReachable) return diverging;
+      }
+    }
+
+    // No route or target unreachable from both — fall back to the physical
+    // switch state.
+    return sw.state === 'diverging' ? diverging : straight;
+  }
+
+  private projectedRouteTarget(
+    route: Route,
+    lastPlatformIndex: number,
+    direction: 'west' | 'east',
+    trackDirection: 'west' | 'east',
+  ): string | undefined {
+    const N = route.platformAbbrs.length;
+    if (N <= 1) return undefined;
+
+    let nextIdx: number;
+    if (direction === 'east') {
+      nextIdx = lastPlatformIndex >= N - 1 ? N - 2 : lastPlatformIndex + 1;
+    } else {
+      nextIdx = lastPlatformIndex <= 0 ? 1 : lastPlatformIndex - 1;
+    }
+
+    const nextAbbr = route.platformAbbrs[nextIdx];
+    const isTerminus = nextIdx === 0 || nextIdx === N - 1;
+
+    return this.graph.pickTargetPlatform(
+      nextAbbr,
+      route.trackGroupName,
+      direction,
+      trackDirection,
+      isTerminus,
+      new Set<string>(),
+    );
+  }
+
   start(onTick: () => void, intervalMs: number = 60): void {
     this.onTick = onTick;
     this.tickInterval = setInterval(() => this.tick(intervalMs / 1000), intervalMs);

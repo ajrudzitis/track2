@@ -62,6 +62,7 @@ change. Use this rather than firing up the TUI when iterating on view code.
 - Track character: `━` (U+2501, BOX DRAWINGS HEAVY HORIZONTAL)
 - Train display: inverted color text with direction arrow (`◂5868` / `5868▸`)
 - Signals: `●` colored red/yellow/green, or directional arrows (→, ↗, ↘) for switch-guarding signals (tinted yellow when in caution). 3-aspect: a non-red signal flips to yellow when the next signal in the train's direction is red.
+- Arrival board: press `a` to open / close, `[` and `]` to cycle stations, `Esc` to close. The selected station's platforms are highlighted on the map. ETAs are route-aware — the walker mirrors the autorouter's decision at each switch (taking the path that reaches the train's next route stop), so trains needing a future divert are included.
 - Switches: Explicitly linked in `switches:` block in `.map` files using `sw1 -> sw2` syntax
 - Diagonal tracks: `╲` and `╱` used for crossover paths between track groups
 - Platform labels: 3-char abbreviation on colored background
