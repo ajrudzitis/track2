@@ -57,6 +57,7 @@ const terminal = new Terminal();
 const renderer = new Renderer(terminal.screen);
 renderer.setData(graph, layout);
 const SCROLL_COLUMNS = 8;
+const SCROLL_ROWS = 2;
 
 const stationAbbrs = graph.stationAbbrsInOrder();
 let arrivalStationIdx: number | null = null;
@@ -120,6 +121,12 @@ const input = new InputHandler((key: string) => {
     draw();
   } else if (key === 'right') {
     renderer.scrollBy(SCROLL_COLUMNS);
+    draw();
+  } else if (key === 'up') {
+    renderer.scrollVerticallyBy(-SCROLL_ROWS);
+    draw();
+  } else if (key === 'down') {
+    renderer.scrollVerticallyBy(SCROLL_ROWS);
     draw();
   } else if (key === 'home') {
     renderer.scrollToStart();

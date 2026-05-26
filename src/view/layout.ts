@@ -49,6 +49,7 @@ export interface LayoutResult {
   trackGroups: TrackGroupLayout[];
   switches: SwitchLayout[];
   contentWidth: number;
+  contentHeight: number;
 }
 
 const PADDING_LEFT = 2;
@@ -213,7 +214,15 @@ export function computeLayout(graph: TrackGraph): LayoutResult {
   }
   contentWidth += PADDING_LEFT;
 
-  return { segments, signals, trackGroups, switches, contentWidth };
+  let contentHeight = 0;
+  for (const tg of trackGroups) {
+    contentHeight = Math.max(contentHeight, tg.eastSignalLabelY + 1);
+  }
+  for (const sw of switches) {
+    contentHeight = Math.max(contentHeight, Math.max(sw.fromY, sw.toY) + 1);
+  }
+
+  return { segments, signals, trackGroups, switches, contentWidth, contentHeight };
 }
 
 /**

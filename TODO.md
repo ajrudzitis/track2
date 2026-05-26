@@ -91,7 +91,9 @@
       (walker mirrors autorouter switch decisions) so trains needing future
       diverts are included.
 - [ ] Manual switch override
-- [ ] Scrolling for large maps
+- [x] Scrolling for large maps (horizontal: ←/→ Home/End was done in
+      fast-follow; vertical: ↑/↓ added now, status bar surfaces the visible
+      row range when scroll is active)
 - [ ] Status bar
 - [x] Basic .map file error reporting
 - [x] Smooth cross-group diagonals. Branch-target trackgroup offset now

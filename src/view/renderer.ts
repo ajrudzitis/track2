@@ -55,6 +55,7 @@ export class Renderer {
   private trains: Train[] = [];
   private speedDisplay: string = '1.0x';
   private scrollX: number = 0;
+  private scrollY: number = 0;
   private arrivalStationAbbr: string | null = null;
   private arrivalRows: ArrivalRow[] = [];
 
@@ -84,6 +85,10 @@ export class Renderer {
     this.setScrollX(this.scrollX + columns);
   }
 
+  scrollVerticallyBy(rows: number): void {
+    this.setScrollY(this.scrollY + rows);
+  }
+
   scrollToStart(): void {
     this.setScrollX(0);
   }
@@ -94,6 +99,7 @@ export class Renderer {
 
   render(): void {
     this.clampScrollX();
+    this.clampScrollY();
     this.screen.clear();
     if (this.layout && this.graph) {
       this.drawSegments();
@@ -109,8 +115,16 @@ export class Renderer {
     this.scrollX = Math.max(0, Math.min(Math.floor(x), this.maxScrollX()));
   }
 
+  private setScrollY(y: number): void {
+    this.scrollY = Math.max(0, Math.min(Math.floor(y), this.maxScrollY()));
+  }
+
   private clampScrollX(): void {
     this.setScrollX(this.scrollX);
+  }
+
+  private clampScrollY(): void {
+    this.setScrollY(this.scrollY);
   }
 
   private maxScrollX(): number {
@@ -118,8 +132,14 @@ export class Renderer {
     return Math.max(0, contentWidth - this.screen.width);
   }
 
+  private maxScrollY(): number {
+    const contentHeight = this.layout?.contentHeight ?? this.screen.height;
+    // Leave one row for the status bar at the bottom.
+    return Math.max(0, contentHeight - (this.screen.height - 1));
+  }
+
   private putWorld(x: number, y: number, char: string, style: CellStyle): void {
-    this.screen.put(x - this.scrollX, y, char, style);
+    this.screen.put(x - this.scrollX, y - this.scrollY, char, style);
   }
 
   private putWorldString(x: number, y: number, str: string, style: CellStyle): void {
@@ -129,7 +149,7 @@ export class Renderer {
   }
 
   private getWorldCharAt(x: number, y: number): string | undefined {
-    return this.screen.getCharAt(x - this.scrollX, y);
+    return this.screen.getCharAt(x - this.scrollX, y - this.scrollY);
   }
 
   private drawSegments(): void {
@@ -404,6 +424,13 @@ export class Renderer {
       const visibleStart = this.scrollX + 1;
       const visibleEnd = Math.min(this.scrollX + this.screen.width, contentWidth);
       parts.push('←/→ scroll', 'Home/End', `${visibleStart}-${visibleEnd}/${contentWidth}`);
+    }
+    if (this.maxScrollY() > 0) {
+      const contentHeight = this.layout?.contentHeight ?? this.screen.height;
+      const visibleRows = this.screen.height - 1;
+      const visibleStart = this.scrollY + 1;
+      const visibleEnd = Math.min(this.scrollY + visibleRows, contentHeight);
+      parts.push('↑/↓ scroll', `r${visibleStart}-${visibleEnd}/${contentHeight}`);
     }
     parts.push(this.arrivalStationAbbr ? 'a close · [/] station' : 'a arrivals');
     parts.push('q quit', this.speedDisplay);

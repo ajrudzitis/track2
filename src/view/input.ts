@@ -5,6 +5,8 @@
 export type KeyHandler = (key: string) => void;
 
 const KEY_SEQUENCES: Record<string, string> = {
+  '\x1b[A': 'up',
+  '\x1b[B': 'down',
   '\x1b[D': 'left',
   '\x1b[C': 'right',
   '\x1b[H': 'home',
