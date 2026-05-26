@@ -56,6 +56,7 @@ on top of the last.
 | `09b-chain.map`      | Multi-switch chain reservation (atomic, deadlock-free) |
 | `09c-aspects.map`    | 3-aspect signals (yellow caution before red)           |
 | `10-two-routes.map`  | Two routes sharing a mainline stub, branch fork        |
+| `link-light-rail.map`| Sound Transit Link 1 & 2 Lines: shared Lynnwood–CID trunk, east branch to Redmond, 20 trains |
 
 ## Development
 

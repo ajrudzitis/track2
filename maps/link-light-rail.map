@@ -1,0 +1,61 @@
+%% Track2: Sound Transit Link light rail (current as of 2026)
+%%
+%% Two routes sharing the 1 Line trunk between Lynnwood City Center
+%% and International District/Chinatown (CID), then diverging:
+%%
+%%   1 Line (green):  Lynnwood City Center <-> Angle Lake
+%%     Continues south from CID through SODO and the Rainier Valley
+%%     down to SeaTac and Angle Lake (23 stations total).
+%%
+%%   2 Line (blue):   Lynnwood City Center <-> Downtown Redmond
+%%     Branches off east of CID across the I-90 floating bridge to
+%%     Judkins Park, Mercer Island, Bellevue and Redmond (25 stations
+%%     total; the cross-lake link opened March 2026).
+%%
+%% Mainline trackgroup carries the full 1 Line spine. The Eastside
+%% trackgroup is the 12-station east branch from Judkins Park to
+%% Downtown Redmond. The branch switches (BR-2 -> BR-1 westbound,
+%% BR-4 -> BR-3 eastbound) join the two just east of CID, matching
+%% the 09-advanced.map cross-trackgroup pattern. Bidirectional
+%% crossovers sit at every physical terminus.
+%%
+%% Real-world headways are 8-10 min on the 1 Line and 6-10 min on
+%% the 2 Line; 10 trains per route at the accelerated sim clock
+%% keeps the trunk busy without packing platforms back-to-back.
+
+config
+  speed: 1.5
+  dwell: 8s
+  layover: 30s
+end
+
+trackgroup Mainline
+  west: [LYN-W] <X1A-W> ---M01W--- [MLT-W] ---M02W--- [S85-W] ---M03W--- [S48-W] ---M04W--- [NGT-W] ---M05W--- [RSV-W] ---M06W--- [UDT-W] ---M07W--- [UWA-W] ---M08W--- [CAP-W] ---M09W--- [WLK-W] ---M10W--- [SYM-W] ---M11W--- [PIO-W] ---M12W--- [CID-W] ---M13W--- <BR-2> ---M14W--- [STD-W] ---M15W--- [SDO-W] ---M16W--- [BCN-W] ---M17W--- [MTB-W] ---M18W--- [CLC-W] ---M19W--- [OTH-W] ---M20W--- [RNB-W] ---M21W--- [TUK-W] ---M22W--- [STA-W] ---M23W--- <X1Z-W> [AGL-W]
+  east: [LYN-E] <X1A-E> ---M01E--- [MLT-E] ---M02E--- [S85-E] ---M03E--- [S48-E] ---M04E--- [NGT-E] ---M05E--- [RSV-E] ---M06E--- [UDT-E] ---M07E--- [UWA-E] ---M08E--- [CAP-E] ---M09E--- [WLK-E] ---M10E--- [SYM-E] ---M11E--- [PIO-E] ---M12E--- [CID-E] ---M13E--- <BR-4> ---M14E--- [STD-E] ---M15E--- [SDO-E] ---M16E--- [BCN-E] ---M17E--- [MTB-E] ---M18E--- [CLC-E] ---M19E--- [OTH-E] ---M20E--- [RNB-E] ---M21E--- [TUK-E] ---M22E--- [STA-E] ---M23E--- <X1Z-E> [AGL-E]
+end
+
+trackgroup Eastside
+  west: <BR-1> ---E01W--- [JDK-W] ---E02W--- [MCI-W] ---E03W--- [SBV-W] ---E04W--- [EMN-W] ---E05W--- [BDT-W] ---E06W--- [WLB-W] ---E07W--- [SPD-W] ---E08W--- [BLR-W] ---E09W--- [OVL-W] ---E10W--- [RDT-W] ---E11W--- [MMR-W] ---E12W--- <X2Z-W> [RDM-W]
+  east: <BR-3> ---E01E--- [JDK-E] ---E02E--- [MCI-E] ---E03E--- [SBV-E] ---E04E--- [EMN-E] ---E05E--- [BDT-E] ---E06E--- [WLB-E] ---E07E--- [SPD-E] ---E08E--- [BLR-E] ---E09E--- [OVL-E] ---E10E--- [RDT-E] ---E11E--- [MMR-E] ---E12E--- <X2Z-E> [RDM-E]
+end
+
+switches
+  X1A-W <-> X1A-E
+  X1Z-W <-> X1Z-E
+  BR-2 -> BR-1
+  BR-4 -> BR-3
+  X2Z-W <-> X2Z-E
+end
+
+route Line1
+  trackgroup: Mainline
+  color: green
+  platforms: LYN, MLT, S85, S48, NGT, RSV, UDT, UWA, CAP, WLK, SYM, PIO, CID, STD, SDO, BCN, MTB, CLC, OTH, RNB, TUK, STA, AGL
+  trains: 10
+end
+
+route Line2
+  color: blue
+  platforms: LYN, MLT, S85, S48, NGT, RSV, UDT, UWA, CAP, WLK, SYM, PIO, CID, JDK, MCI, SBV, EMN, BDT, WLB, SPD, BLR, OVL, RDT, MMR, RDM
+  trains: 10
+end
