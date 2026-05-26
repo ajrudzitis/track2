@@ -78,18 +78,28 @@ full TUI.
 
 ```
 src/
-  main.ts        Entry point + key handling
-  parser/        .map file parser
-  model/         Track topology, trains, signals, simulation
-  view/          Layout + ANSI renderer + input
-scripts/         render-snapshot.ts
-maps/            Demo .map files (see table above)
+  main.ts           Node CLI entry — argv, fs read, wires stdin/stdout adapters
+  runtime.ts        Platform-agnostic TUI loop (parse → sim → render → input)
+  maps-manifest.ts  Curated list of demo maps for host UIs
+  parser/           .map file parser
+  model/            Track topology, trains, signals, simulation
+  view/
+    io.ts           OutputSink / InputSource interfaces
+    node-io.ts      Adapters for process.stdout / process.stdin
+    terminal.ts     Cell-based screen buffer + Terminal wrapper
+    input.ts        Key-sequence translation (arrows, home, end, ...)
+    renderer.ts     Draws layout onto the screen buffer
+    layout.ts       Geometry pass over the graph
+scripts/            render-snapshot.ts
+maps/               Demo .map files (see table above)
 ```
 
-Four layers, no runtime dependencies — only Node built-ins, raw terminal
-control via `process.stdout` and ANSI escape sequences. See `DESIGN.md`
-for the full spec with RFC 2119 requirements and `CLAUDE.md` for the
-codebase conventions.
+Four layers, no runtime dependencies — only Node built-ins, with terminal
+output written as ANSI escape sequences through an `OutputSink` interface.
+The Node CLI binds it to `process.stdout`; other hosts (e.g. xterm.js in
+a browser) bind it to their own terminal emulator and call `runSimulation`
+with no other changes. See `DESIGN.md` for the full spec with RFC 2119
+requirements and `CLAUDE.md` for the codebase conventions.
 
 ## Status
 

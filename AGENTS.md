@@ -14,14 +14,16 @@ Four layers, cleanly separated:
 - **Parser** (`src/parser/`): Reads `.map` files into model objects
 - **Model** (`src/model/`): Track topology graph, trains, signals, segments
 - **Simulation** (`src/model/simulation.ts`): Game loop, train movement, signal interlocking
-- **View** (`src/view/`): TUI rendering with ANSI escape codes, keyboard input
+- **View** (`src/view/`): Cell-based screen buffer, ANSI renderer, key translation. Platform-agnostic — drives any `OutputSink` / `InputSource` (see `src/view/io.ts`).
+
+The TUI loop itself lives in `src/runtime.ts` (`runSimulation({ mapSource, output, input, onQuit })`). The Node CLI (`src/main.ts`) wires the runtime to `process.stdout` / `process.stdin` via the adapters in `src/view/node-io.ts`. Browser hosts (e.g. xterm.js) implement the same interfaces against their own terminal emulator and call `runSimulation` with no changes to the simulation, model, or renderer.
 
 ## Tech Stack
 
 - TypeScript, Node 22+, ESM modules
 - `tsx` for development, `tsc` for production builds
 - No runtime dependencies — only Node built-ins
-- Raw terminal control via `process.stdout` and ANSI escape sequences
+- Terminal output via ANSI escape sequences, written through the `OutputSink` interface (`process.stdout` for the CLI, `xterm.Terminal.write` for browser hosts)
 
 ## Build & Run
 

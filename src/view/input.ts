@@ -1,6 +1,10 @@
 /**
- * Keyboard input handler for raw terminal mode.
+ * Translates raw key data from an InputSource into named keys (arrow keys,
+ * home/end, etc.). The source is platform-specific (Node stdin, xterm.js
+ * onData, etc.) — see `io.ts`.
  */
+
+import type { InputSource } from './io.js';
 
 export type KeyHandler = (key: string) => void;
 
@@ -18,30 +22,38 @@ const KEY_SEQUENCES: Record<string, string> = {
 };
 
 export class InputHandler {
+  private source: InputSource;
   private handler: KeyHandler;
+  private subscribed = false;
 
-  constructor(handler: KeyHandler) {
+  constructor(source: InputSource, handler: KeyHandler) {
+    this.source = source;
     this.handler = handler;
   }
 
   start(): void {
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (data: string) => {
-      let i = 0;
-      while (i < data.length) {
-        const seq = Object.keys(KEY_SEQUENCES).find(s => data.startsWith(s, i));
-        if (seq) {
-          this.handler(KEY_SEQUENCES[seq]);
-          i += seq.length;
-        } else {
-          this.handler(data[i]);
-          i++;
-        }
-      }
-    });
+    if (!this.subscribed) {
+      this.source.onData((data) => this.dispatch(data));
+      this.subscribed = true;
+    }
+    this.source.start();
   }
 
   stop(): void {
-    process.stdin.removeAllListeners('data');
+    this.source.stop();
+  }
+
+  private dispatch(data: string): void {
+    let i = 0;
+    while (i < data.length) {
+      const seq = Object.keys(KEY_SEQUENCES).find((s) => data.startsWith(s, i));
+      if (seq) {
+        this.handler(KEY_SEQUENCES[seq]);
+        i += seq.length;
+      } else {
+        this.handler(data[i]);
+        i++;
+      }
+    }
   }
 }

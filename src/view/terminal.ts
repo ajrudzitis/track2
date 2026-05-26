@@ -1,6 +1,11 @@
 /**
- * Raw terminal control: alternate screen, cursor, colors, cell-based screen buffer.
+ * Cell-based screen buffer + Terminal wrapper.
+ *
+ * The buffer is platform-agnostic; the Terminal class drives any OutputSink
+ * (Node stdout, xterm.js, etc.) — see `io.ts` and `node-io.ts`.
  */
+
+import type { OutputSink } from './io.js';
 
 export interface CellStyle {
   fg: number;       // ANSI color code (e.g. 37 for white)
@@ -27,6 +32,8 @@ function cellsEqual(a: Cell, b: Cell): boolean {
 function makeCell(char = ' ', style: CellStyle = DEFAULT_STYLE): Cell {
   return { char, style: { ...style } };
 }
+
+export type WriteFn = (s: string) => void;
 
 export class ScreenBuffer {
   width: number;
@@ -86,7 +93,7 @@ export class ScreenBuffer {
     }
   }
 
-  flush(): void {
+  flush(write: WriteFn): void {
     let out = '';
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
@@ -102,7 +109,7 @@ export class ScreenBuffer {
     out += '\x1b[0m'; // reset
     out += `\x1b[${this.height};${this.width}H`; // park cursor at bottom-right
     if (out.length > 0) {
-      process.stdout.write(out);
+      write(out);
     }
     // Swap buffers
     this.prev = this.cells;
@@ -124,45 +131,41 @@ function styleToAnsi(style: CellStyle): string {
   return seq;
 }
 
+export type TerminalResizeListener = (cols: number, rows: number) => void;
+
 export class Terminal {
   private buffer: ScreenBuffer;
-  private wasRaw = false;
+  private sink: OutputSink;
+  private resizeListeners: TerminalResizeListener[] = [];
 
-  constructor() {
-    const [w, h] = process.stdout.columns
-      ? [process.stdout.columns, process.stdout.rows]
-      : [80, 24];
-    this.buffer = new ScreenBuffer(w, h);
+  constructor(sink: OutputSink) {
+    this.sink = sink;
+    this.buffer = new ScreenBuffer(sink.cols, sink.rows);
+    sink.onResize((cols, rows) => {
+      this.buffer.resize(cols, rows);
+      this.sink.write('\x1b[2J'); // clear so next frame draws on a blank surface
+      for (const fn of this.resizeListeners) fn(cols, rows);
+    });
   }
 
   get width(): number { return this.buffer.width; }
   get height(): number { return this.buffer.height; }
   get screen(): ScreenBuffer { return this.buffer; }
 
-  enter(): void {
-    this.wasRaw = process.stdin.isRaw ?? false;
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdout.write('\x1b[?1049h'); // alternate screen
-    process.stdout.write('\x1b[?25l');   // hide cursor
-    process.stdout.write('\x1b[2J');     // clear screen
+  /** Fired after the buffer has been resized and the screen cleared. */
+  onResize(listener: TerminalResizeListener): void {
+    this.resizeListeners.push(listener);
+  }
 
-    process.stdout.on('resize', () => {
-      const w = process.stdout.columns;
-      const h = process.stdout.rows;
-      this.buffer.resize(w, h);
-      process.stdout.write('\x1b[2J'); // clear on resize
-    });
+  enter(): void {
+    this.sink.enter();
   }
 
   exit(): void {
-    process.stdout.write('\x1b[?25h');   // show cursor
-    process.stdout.write('\x1b[?1049l'); // restore screen
-    process.stdin.setRawMode(this.wasRaw);
-    process.stdin.pause();
+    this.sink.exit();
   }
 
   flush(): void {
-    this.buffer.flush();
+    this.buffer.flush((s) => this.sink.write(s));
   }
 }
