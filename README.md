@@ -1,54 +1,110 @@
-# Track2
+```
+████████╗██████╗  █████╗  ██████╗██╗  ██╗██████╗
+╚══██╔══╝██╔══██╗██╔══██╗██╔════╝██║ ██╔╝╚════██╗
+   ██║   ██████╔╝███████║██║     █████╔╝  █████╔╝
+   ██║   ██╔══██╗██╔══██║██║     ██╔═██╗ ██╔═══╝
+   ██║   ██║  ██║██║  ██║╚██████╗██║  ██╗███████╗
+   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◂1001━━━━━
+```
 
-![Track2 Screenshot](assets/screenshot.png)
+A subway/metro simulation TUI built in TypeScript — define a network in a
+`.map` file and watch trains run on a control-room-style terminal display.
 
-A subway/metro simulation TUI built in TypeScript.
+![Track2 screenshot](assets/screenshot.png)
 
-Track2 lets you define subway networks in `.map` files and watch trains run in a control-room-style terminal display.
-
-## Quick Start
+## Quick start
 
 ```bash
 npm install
-npm run dev -- maps/08-terminal.map
+npm run dev -- maps/10-two-routes.map
 ```
-Try `maps/08-terminal.map` to see the new **terminal behavior** — trains arriving at a terminus pick the platform on the outbound-direction track (so they depart straight on the next run), and hold there for the configured `layover` rather than the regular station dwell.
 
-For a wide-map demo, run `npm run dev -- maps/08b-scrolling.map`. Use Left/Right to pan horizontally and Home/End to jump to either edge.
+`10-two-routes.map` is the showcase map: a six-station mainline that forks
+onto a three-station branch, with two routes (mainline + branch) sharing
+the pre-fork stations, eight trains running, and bidirectional crossovers
+at every terminus.
 
-For a branch demo, run `npm run dev -- maps/09-advanced.map`. The Branch route spans the Main and Branch track groups by omitting `trackgroup:`; this is supported when each station abbreviation used by the route is unique across the map.
+## Keybindings
+
+| Key                | Action                                                |
+|--------------------|-------------------------------------------------------|
+| `+` / `-`          | Speed up / slow down the sim (0.25x – 4x)             |
+| `←` `→` `Home` `End` | Pan horizontally / jump to either edge              |
+| `↑` `↓`            | Scroll vertically when the map is taller than screen  |
+| `a`                | Open / close the per-station arrival board            |
+| `[` `]`            | Cycle stations in the arrival board                   |
+| `h`                | Toggle the help overlay (full keybinding list)        |
+| `Esc`              | Close any open overlay                                |
+| `q`                | Quit                                                  |
+
+## Demo maps
+
+The `maps/` directory is also a feature tour — each map adds one capability
+on top of the last.
+
+| Map                  | Shows off                                              |
+|----------------------|--------------------------------------------------------|
+| `02-segments.map`    | Plain segments, boundary tick marks                    |
+| `03-platforms.map`   | Station platforms with 3-char labels                   |
+| `04-signals.map`     | Auto-generated signals at segment boundaries           |
+| `05-trains.map`      | Train movement, dwell, signal respect                  |
+| `06-routes.map`      | Cyclic routes, multiple trains per route               |
+| `07-switches.map`    | Crossovers and branch switches                         |
+| `08-terminal.map`    | Terminus crossover + per-route layover timer           |
+| `08b-scrolling.map`  | Maps wider than the terminal scroll horizontally       |
+| `09-advanced.map`    | Routes spanning separate track groups via branch links |
+| `09b-chain.map`      | Multi-switch chain reservation (atomic, deadlock-free) |
+| `09c-aspects.map`    | 3-aspect signals (yellow caution before red)           |
+| `10-two-routes.map`  | Two routes sharing a mainline stub, branch fork        |
 
 ## Development
 
 ```bash
-npm run dev -- <mapfile>              # Run with tsx (dev)
-npm run dev -- --debug <mapfile>      # Headless: dump train/switch state to stdout
+npm run dev -- <mapfile>              # Run with tsx
+npm run dev -- --debug <mapfile>      # Headless: dump train/switch state
 npm run build                         # Compile TypeScript
 npm start -- <mapfile>                # Run compiled version
+
+npx tsx scripts/render-snapshot.ts <mapfile>   # Single-frame text snapshot
 ```
 
-## Project Structure
+`--debug` is the right tool for chasing simulation bugs (routing,
+interlocking, deadlocks). `render-snapshot.ts` dumps a plain-text frame
+of the renderer — useful for diffing layout changes without firing up the
+full TUI.
+
+## Project structure
 
 ```
 src/
-  main.ts              # Entry point
-  parser/              # .map file parser
-  model/               # Track topology and state
-  controller/          # Simulation engine
-  view/                # TUI renderer
-maps/                  # Example .map files
+  main.ts        Entry point + key handling
+  parser/        .map file parser
+  model/         Track topology, trains, signals, simulation
+  view/          Layout + ANSI renderer + input
+scripts/         render-snapshot.ts
+maps/            Demo .map files (see table above)
 ```
+
+Four layers, no runtime dependencies — only Node built-ins, raw terminal
+control via `process.stdout` and ANSI escape sequences. See `DESIGN.md`
+for the full spec with RFC 2119 requirements and `CLAUDE.md` for the
+codebase conventions.
 
 ## Status
 
-Phase 9 branch switches are partially complete. Platforms that share an abbreviation (e.g. `[STH-W]` and `[STH-E]`) are treated as platforms of one station, and trains arriving at a route's first or last station now select the platform on the track natural to the *reversed* direction so they depart straight on the next run. If that platform is occupied, the train falls back to the same-track platform (a deliberate misroute that the next terminus crossover will correct). Layover time (configurable per route via `layover:`, otherwise from `config.layover`, otherwise 60 seconds) replaces the normal station dwell at termini.
+Phases 0 through 10 (Polish + Special Features) are complete. The
+simulation supports cyclic routes spanning multiple track groups, branch
+switches and double crossovers, atomic multi-switch chain reservation,
+3-aspect signals with yellow caution, per-route layovers at termini,
+horizontal and vertical scrolling for oversized maps, a per-station
+arrival board with route-aware ETAs, and a sim clock + train-state
+breakdown in the status bar.
 
-Maps wider than the terminal now scroll horizontally instead of clipping silently. The status bar stays fixed and shows the visible column range whenever scrolling is available.
+Route endpoints are still required to be physical track termini —
+mid-line turnbacks need explicit turnback or crossover support before
+they can be modeled safely. Manual switch override is the one Phase 10
+item not yet wired up.
 
-Branch switches can connect separate track groups. Route autorouting now checks reachability through future switch choices, so a train can choose a branch switch even when the destination platform requires another crossover later in the route. Directed switch links are geometric: `A -> B` means eastbound trains can diverge from `A` to `B`, and westbound trains can traverse that same physical link from `B` to `A`.
-
-Route endpoints are currently required to be physical track termini. Mid-line turnbacks need explicit turnback or crossover support before they can be modeled safely.
-
-Plain segment joins render visible boundary tick marks; stations and switches serve as their own boundaries.
-
-Map loading now fails fast on malformed syntax, unknown keys, unresolved switch links, missing route platforms, and unsupported route endpoints.
+Map loading fails fast on malformed syntax, unknown keys, unresolved
+switch links, missing route platforms, and unsupported route endpoints.
