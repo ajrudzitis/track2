@@ -94,7 +94,9 @@
 - [x] Scrolling for large maps (horizontal: ←/→ Home/End was done in
       fast-follow; vertical: ↑/↓ added now, status bar surfaces the visible
       row range when scroll is active)
-- [ ] Status bar
+- [x] Status bar: sim clock, train count with running/dwelling/stopped
+      breakdown, current speed; keybind hints moved to an `h help` popover
+      so the bar stays uncluttered as features are added.
 - [x] Basic .map file error reporting
 - [x] Smooth cross-group diagonals. Branch-target trackgroup offset now
       requires dx >= dy, so the diagonal always renders at <=45° (one column

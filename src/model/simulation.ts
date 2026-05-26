@@ -19,6 +19,7 @@ export class Simulation {
   private speed: number = 1.0;
   private tickInterval: ReturnType<typeof setInterval> | null = null;
   private onTick: (() => void) | null = null;
+  private elapsedSeconds: number = 0;
 
   constructor(graph: TrackGraph) {
     this.graph = graph;
@@ -26,6 +27,10 @@ export class Simulation {
 
   get currentSpeed(): number {
     return this.speed;
+  }
+
+  get simElapsedSeconds(): number {
+    return this.elapsedSeconds;
   }
 
   setSpeed(s: number): void {
@@ -323,6 +328,7 @@ export class Simulation {
 
   private tick(dtBase: number): void {
     const dt = dtBase * this.speed;
+    this.elapsedSeconds += dt;
 
     for (const train of this.trains) {
       this.autoRouteTrain(train);

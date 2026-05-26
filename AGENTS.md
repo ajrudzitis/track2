@@ -63,6 +63,8 @@ change. Use this rather than firing up the TUI when iterating on view code.
 - Train display: inverted color text with direction arrow (`◂5868` / `5868▸`)
 - Signals: `●` colored red/yellow/green, or directional arrows (→, ↗, ↘) for switch-guarding signals (tinted yellow when in caution). 3-aspect: a non-red signal flips to yellow when the next signal in the train's direction is red.
 - Arrival board: press `a` to open / close, `[` and `]` to cycle stations, `Esc` to close. The selected station's platforms are highlighted on the map. ETAs are route-aware — the walker mirrors the autorouter's decision at each switch (taking the path that reaches the train's next route stop), so trains needing a future divert are included.
+- Help overlay: press `h` to toggle a popover listing every keybinding. Status bar only advertises `h help` and `q quit` so it stays uncluttered.
+- Status bar: bottom row. Left: version, sim clock (counts up from spawn, scales with speed), train count with running/dwelling/stopped breakdown, current speed. Right: help and quit hints. The clock and breakdown are useful at-a-glance signals when you're watching a long sim.
 - Switches: Explicitly linked in `switches:` block in `.map` files using `sw1 -> sw2` syntax
 - Diagonal tracks: `╲` and `╱` used for crossover paths between track groups
 - Platform labels: 3-char abbreviation on colored background

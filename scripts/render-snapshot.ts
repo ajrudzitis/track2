@@ -12,6 +12,8 @@ import { Simulation } from '../src/model/simulation.js';
 const args = process.argv.slice(2);
 const arrivalsIdx = args.indexOf('--arrivals');
 const arrivalsStation = arrivalsIdx >= 0 ? args.splice(arrivalsIdx, 2)[1] : null;
+const helpIdx = args.indexOf('--help-overlay');
+const showHelp = helpIdx >= 0 && (args.splice(helpIdx, 1), true);
 const mapPath = args[0];
 if (!mapPath) {
   console.error('usage: tsx scripts/render-snapshot.ts <map> [--arrivals STATION]');
@@ -31,6 +33,7 @@ const screen = new ScreenBuffer(Math.max(120, layout.contentWidth + 4), 30);
 const renderer = new Renderer(screen);
 renderer.setData(graph, layout);
 renderer.setTrains(sim.trains);
+if (showHelp) renderer.setHelpOpen(true);
 if (arrivalsStation) {
   const rows: ArrivalRow[] = [];
   for (const t of sim.trains) {

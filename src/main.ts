@@ -89,9 +89,20 @@ function computeArrivalRows(abbr: string): ArrivalRow[] {
   return rows;
 }
 
+function formatClock(seconds: number): string {
+  const s = Math.floor(seconds);
+  const hh = Math.floor(s / 3600);
+  const mm = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  return hh > 0
+    ? `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+    : `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+}
+
 function draw(): void {
   renderer.setTrains(sim.trains);
   renderer.setSpeedDisplay(`${sim.currentSpeed.toFixed(2)}x`);
+  renderer.setSimClock(formatClock(sim.simElapsedSeconds));
   if (arrivalStationIdx !== null && stationAbbrs.length > 0) {
     const abbr = stationAbbrs[arrivalStationIdx];
     renderer.setArrivalBoard(abbr, computeArrivalRows(abbr));
@@ -139,10 +150,13 @@ const input = new InputHandler((key: string) => {
     arrivalStationIdx = arrivalStationIdx === null ? 0 : null;
     draw();
   } else if (key === '\x1b') {
-    if (arrivalStationIdx !== null) {
-      arrivalStationIdx = null;
-      draw();
-    }
+    let changed = false;
+    if (renderer.isHelpOpen()) { renderer.setHelpOpen(false); changed = true; }
+    if (arrivalStationIdx !== null) { arrivalStationIdx = null; changed = true; }
+    if (changed) draw();
+  } else if (key === 'h') {
+    renderer.setHelpOpen(!renderer.isHelpOpen());
+    draw();
   } else if (key === '[') {
     if (arrivalStationIdx === null || stationAbbrs.length === 0) return;
     arrivalStationIdx = (arrivalStationIdx - 1 + stationAbbrs.length) % stationAbbrs.length;

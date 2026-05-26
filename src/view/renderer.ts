@@ -54,10 +54,12 @@ export class Renderer {
   private graph: TrackGraph | null = null;
   private trains: Train[] = [];
   private speedDisplay: string = '1.0x';
+  private simClockDisplay: string = '00:00';
   private scrollX: number = 0;
   private scrollY: number = 0;
   private arrivalStationAbbr: string | null = null;
   private arrivalRows: ArrivalRow[] = [];
+  private helpOpen: boolean = false;
 
   constructor(screen: ScreenBuffer) {
     this.screen = screen;
@@ -79,6 +81,18 @@ export class Renderer {
 
   setSpeedDisplay(s: string): void {
     this.speedDisplay = s;
+  }
+
+  setSimClock(s: string): void {
+    this.simClockDisplay = s;
+  }
+
+  setHelpOpen(open: boolean): void {
+    this.helpOpen = open;
+  }
+
+  isHelpOpen(): boolean {
+    return this.helpOpen;
   }
 
   scrollBy(columns: number): void {
@@ -109,6 +123,7 @@ export class Renderer {
       if (this.arrivalStationAbbr) this.drawArrivalBoard();
     }
     this.drawStatusBar();
+    if (this.helpOpen) this.drawHelpOverlay();
   }
 
   private setScrollX(x: number): void {
@@ -417,24 +432,50 @@ export class Renderer {
 
   private drawStatusBar(): void {
     const y = this.screen.height - 1;
-    const trainCount = this.trains.length;
-    const parts = [` Track2 v0.1`, `${trainCount} trains`, '+/- speed'];
-    const contentWidth = this.layout?.contentWidth ?? this.screen.width;
-    if (this.maxScrollX() > 0) {
-      const visibleStart = this.scrollX + 1;
-      const visibleEnd = Math.min(this.scrollX + this.screen.width, contentWidth);
-      parts.push('←/→ scroll', 'Home/End', `${visibleStart}-${visibleEnd}/${contentWidth}`);
+    // Functional state.
+    const running = this.trains.filter(t => t.state === 'running').length;
+    const dwelling = this.trains.filter(t => t.state === 'dwelling').length;
+    const stopped = this.trains.filter(t => t.state === 'stopped').length;
+    const trainBreakdown = `${this.trains.length} trains (${running} run, ${dwelling} dwell${stopped > 0 ? `, ${stopped} stop` : ''})`;
+
+    const left = [` Track2 v0.1`, this.simClockDisplay, trainBreakdown, this.speedDisplay].join('  │  ');
+    const right = [this.helpOpen ? 'h close help' : 'h help', 'q quit'].join('  │  ') + ' ';
+
+    this.screen.putString(0, y, left, STATUS_STYLE);
+    const rightX = Math.max(left.length + 2, this.screen.width - right.length);
+    this.screen.putString(rightX, y, right, STATUS_STYLE);
+  }
+
+  private drawHelpOverlay(): void {
+    const lines: Array<[string, string]> = [
+      ['+ / -', 'adjust simulation speed'],
+      ['← →', 'pan horizontally'],
+      ['↑ ↓', 'pan vertically'],
+      ['Home / End', 'scroll to start / end (horizontal)'],
+      ['a', 'toggle arrival board'],
+      ['[ / ]', 'cycle stations (when board open)'],
+      ['Esc', 'close arrivals / this help'],
+      ['h', 'toggle this help'],
+      ['q', 'quit'],
+    ];
+
+    const header = ' Help ';
+    const keyCol = Math.max(...lines.map(([k]) => k.length));
+    const rowTexts = lines.map(([k, v]) => `${k.padEnd(keyCol)}  ${v}`);
+    const innerWidth = Math.max(header.length, ...rowTexts.map(t => t.length + 2));
+    const totalWidth = innerWidth + 2;
+    const totalHeight = rowTexts.length + 2;
+
+    const x0 = Math.max(0, Math.floor((this.screen.width - totalWidth) / 2));
+    const y0 = Math.max(0, Math.floor((this.screen.height - totalHeight) / 2));
+
+    this.screen.putString(x0, y0, '┌' + header.padEnd(innerWidth, '─') + '┐', STATUS_STYLE);
+    for (let i = 0; i < rowTexts.length; i++) {
+      this.screen.put(x0, y0 + 1 + i, '│', STATUS_STYLE);
+      const padded = ' ' + rowTexts[i].padEnd(innerWidth - 1);
+      this.screen.putString(x0 + 1, y0 + 1 + i, padded, STATUS_STYLE);
+      this.screen.put(x0 + totalWidth - 1, y0 + 1 + i, '│', STATUS_STYLE);
     }
-    if (this.maxScrollY() > 0) {
-      const contentHeight = this.layout?.contentHeight ?? this.screen.height;
-      const visibleRows = this.screen.height - 1;
-      const visibleStart = this.scrollY + 1;
-      const visibleEnd = Math.min(this.scrollY + visibleRows, contentHeight);
-      parts.push('↑/↓ scroll', `r${visibleStart}-${visibleEnd}/${contentHeight}`);
-    }
-    parts.push(this.arrivalStationAbbr ? 'a close · [/] station' : 'a arrivals');
-    parts.push('q quit', this.speedDisplay);
-    const status = parts.join('  │  ');
-    this.screen.putString(0, y, status, STATUS_STYLE);
+    this.screen.putString(x0, y0 + totalHeight - 1, '└' + '─'.repeat(innerWidth) + '┘', STATUS_STYLE);
   }
 }
